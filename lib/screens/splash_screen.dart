@@ -20,57 +20,44 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF4FD8A4),
-              Color(0xFF0A0A0F),
-            ],
-          ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: const Icon(
-                  Icons.shield,
-                  size: 60,
-                  color: Color(0xFF4FD8A4),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Claimly',
-                style: GoogleFonts.inter(
-                  fontSize: 40,
+      backgroundColor: const Color(0xFF081814),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Logo/Text
+            RichText(
+              text: TextSpan(
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 48,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
                 ),
+                children: const [
+                  TextSpan(text: 'Claim', style: TextStyle(color: Colors.white)),
+                  TextSpan(text: 'ly', style: TextStyle(color: Color(0xFF49D86A))),
+                ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Get covered',
-                style: GoogleFonts.inter(
-                  fontSize: 18,
-                  color: Colors.white70,
-                ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Get covered',
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                color: Colors.white.withOpacity(0.6),
+                fontWeight: FontWeight.w400,
               ),
-              const SizedBox(height: 40),
-              const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+            const SizedBox(height: 48),
+            // Loading indicator
+            SizedBox(
+              width: 32,
+              height: 32,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF49D86A)),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

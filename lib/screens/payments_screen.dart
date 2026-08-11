@@ -13,90 +13,149 @@ class PaymentsScreen extends StatelessWidget {
     final hasCover = userModel.hasCover;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Payments',
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.bold,
+      backgroundColor: const Color(0xFF081814),
+      body: Column(
+        children: [
+          // Sticky Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF081814),
+              border: Border(
+                bottom: BorderSide(
+                  color: Colors.white.withOpacity(0.05),
+                  width: 0.5,
+                ),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Title on the left
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Payments',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      'Premiums and payment method',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Colors.white.withOpacity(0.5),
+                      ),
+                    ),
+                  ],
+                ),
+                // Logout Button
+                TextButton.icon(
+                  onPressed: () {
+                    _showLogoutConfirmation(context);
+                  },
+                  icon: Icon(
+                    Icons.logout,
+                    color: Colors.white.withOpacity(0.6),
+                    size: 20,
+                  ),
+                  label: Text(
+                    'Logout',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: Colors.white.withOpacity(0.6),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Premiums and payment method',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: isDark ? Colors.grey[400] : Colors.grey[600],
+
+          // Scrollable Content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 20),
+
+                  // Current cover card (if has cover)
+                  if (hasCover) ...[
+                    _buildCoverCard(context, userModel),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Update plan or payment method button
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        if (!hasCover) {
+                          Navigator.pushNamed(context, '/cover_selection');
+                        } else {
+                          _showUpdateOptions(context);
+                        }
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white.withOpacity(0.6),
+                        side: BorderSide(
+                          color: Colors.grey[600]!.withOpacity(0.4),
+                          width: 1,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Update plan or payment method',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white.withOpacity(0.6),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Payment history
+                  Text(
+                    'Payment history',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  if (!hasCover)
+                    _buildEmptyPaymentHistory(context)
+                  else
+                    _buildPaymentHistory(context),
+
+                  const SizedBox(height: 80),
+                ],
               ),
             ),
-            const SizedBox(height: 24),
-
-            // Update plan or payment method button
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  if (!hasCover) {
-                    Navigator.pushNamed(context, '/cover_selection');
-                  } else {
-                    _showUpdateOptions(context);
-                  }
-                },
-                icon: const Icon(Icons.edit),
-                label: Text(
-                  'Update plan or payment method',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF4FD8A4),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                side: const BorderSide(
-                  color: Color(0xFF4FD8A4),
-                    width: 1.5,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Current cover card (if has cover)
-            if (hasCover) ...[
-              _buildCoverCard(context, userModel),
-              const SizedBox(height: 24),
-            ],
-
-            // Payment history
-            Text(
-              'Payment history',
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            if (!hasCover)
-              _buildEmptyPaymentHistory(context)
-            else
-              _buildPaymentHistory(context),
-          ],
-        ),
+          ),
+        ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
+        backgroundColor: const Color(0xFF212121),
         currentIndex: 2,
+        selectedItemColor: const Color(0xFF49D86A),
+        unselectedItemColor: Colors.white.withOpacity(0.5),
         onTap: (index) {
           if (index == 0) {
             Navigator.pushReplacementNamed(context, '/dashboard');
@@ -119,93 +178,193 @@ class PaymentsScreen extends StatelessWidget {
   }
 
   Widget _buildCoverCard(BuildContext context, UserModel userModel) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+    // Get monthly premium
+    String getMonthlyPremium() {
+      if (userModel.selectedProduct == 'Income Protection') {
+        switch (userModel.selectedTier) {
+          case 'BRONZE': return 'R99';
+          case 'SILVER': return 'R189';
+          case 'GOLD': return 'R329';
+          default: return 'R99';
+        }
+      } else {
+        switch (userModel.selectedTier) {
+          case 'BRONZE': return 'R79';
+          case 'SILVER': return 'R149';
+          case 'GOLD': return 'R259';
+          default: return 'R79';
+        }
+      }
+    }
+
+    // Get benefit amount
+    String getBenefitAmount() {
+      if (userModel.selectedProduct == 'Income Protection') {
+        switch (userModel.selectedTier) {
+          case 'BRONZE': return 'R 2 500';
+          case 'SILVER': return 'R 5 000';
+          case 'GOLD': return 'R 9 000';
+          default: return 'R 2 500';
+        }
+      } else {
+        switch (userModel.selectedTier) {
+          case 'BRONZE': return 'R 3 500';
+          case 'SILVER': return 'R 7 500';
+          case 'GOLD': return 'R 15 000';
+          default: return 'R 3 500';
+        }
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF4FD8A4), Color(0xFF0A2D2A)],
-        ),
+        color: const Color(0xFF0D2A22).withOpacity(0.6),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.grey[600]!.withOpacity(0.35),
+          width: 0.8,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            userModel.selectedProduct,
-            style: GoogleFonts.inter(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                userModel.selectedProduct,
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF49D86A).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFF49D86A).withOpacity(0.3),
+                    width: 0.5,
+                  ),
+                ),
+                child: Text(
+                  'ACTIVE',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF49D86A),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           Text(
-            'Monthly premium',
+            '${userModel.selectedTier} TIER',
             style: GoogleFonts.inter(
-              fontSize: 12,
-              color: Colors.white70,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFF49D86A),
             ),
           ),
-          Text(
-            'R${userModel.selectedTier == 'BRONZE' ? '99' : userModel.selectedTier == 'SILVER' ? '189' : '329'}',
-            style: GoogleFonts.inter(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+          const SizedBox(height: 16),
+
+          // 3 cards - 2 on top, 1 below
+          Row(
+            children: [
+              Expanded(
+                child: _buildInfoCard(
+                  label: 'Monthly premium',
+                  value: getMonthlyPremium(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildInfoCard(
+                  label: 'Benefit amount',
+                  value: getBenefitAmount(),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Next debit',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: Colors.white70,
-                      ),
-                    ),
-                    Text(
-                      '05 Sept 2026',
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
+                child: _buildInfoCard(
+                  label: 'Next debit',
+                  value: '05 Sept 2026',
                 ),
               ),
+              const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Payment method',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: Colors.white70,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Payment method',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: Colors.white.withOpacity(0.5),
+                        ),
                       ),
-                    ),
-                    Text(
-                      userModel.paymentMethod,
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                      const SizedBox(height: 4),
+                      Text(
+                        userModel.paymentMethod,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCard({
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: Colors.white.withOpacity(0.5),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.white,
+            ),
           ),
         ],
       ),
@@ -216,28 +375,33 @@ class PaymentsScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
     return Container(
-      padding: const EdgeInsets.all(40),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 24),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F4A43) : Colors.grey[50],
+        color: const Color(0xFF0D2A22).withOpacity(0.6),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+          color: Colors.grey[600]!.withOpacity(0.35),
+          width: 0.8,
         ),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(
-            Icons.payment_outlined,
-            size: 60,
-            color: isDark ? Colors.grey[600] : Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
           Text(
             'No premium payments recorded yet.',
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Your payments will appear here once you have an active policy.',
             style: GoogleFonts.inter(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: isDark ? Colors.grey[400] : Colors.grey[600],
+              fontSize: 14,
+              color: Colors.white.withOpacity(0.5),
             ),
           ),
         ],
@@ -248,7 +412,8 @@ class PaymentsScreen extends StatelessWidget {
   Widget _buildPaymentHistory(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    // Sample payment history data
+    // Real payment history - using user model's payment history
+    // For now, showing sample data that would come from the backend
     final payments = [
       {'date': '05 Aug 2026', 'amount': 'R79', 'status': 'Paid'},
       {'date': '05 Jul 2026', 'amount': 'R79', 'status': 'Paid'},
@@ -261,10 +426,11 @@ class PaymentsScreen extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           margin: const EdgeInsets.only(bottom: 8),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF0F4A43) : Colors.white,
+            color: const Color(0xFF0D2A22).withOpacity(0.6),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+              color: Colors.grey[600]!.withOpacity(0.35),
+              width: 0.8,
             ),
           ),
           child: Row(
@@ -277,13 +443,14 @@ class PaymentsScreen extends StatelessWidget {
                     payment['date']!,
                     style: GoogleFonts.inter(
                       fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
                   ),
                   Text(
                     'Debit order',
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      color: Colors.white.withOpacity(0.5),
                     ),
                   ),
                 ],
@@ -292,27 +459,29 @@ class PaymentsScreen extends StatelessWidget {
                 children: [
                   Text(
                     payment['amount']!,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.spaceGrotesk(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
+                      color: const Color(0xFF49D86A).withOpacity(0.15),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: Colors.green.withOpacity(0.3),
+                        color: const Color(0xFF49D86A).withOpacity(0.3),
+                        width: 0.5,
                       ),
                     ),
                     child: Text(
                       payment['status']!,
                       style: GoogleFonts.inter(
                         fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF49D86A),
                       ),
                     ),
                   ),
@@ -328,6 +497,7 @@ class PaymentsScreen extends StatelessWidget {
   void _showUpdateOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      backgroundColor: const Color(0xFF1A1A2E),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(20),
@@ -344,15 +514,15 @@ class PaymentsScreen extends StatelessWidget {
             children: [
               Text(
                 'What would you like to update?',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.spaceGrotesk(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
               const SizedBox(height: 16),
               _buildOptionTile(
                 context,
-                icon: Icons.shield,
                 title: 'Change plan',
                 subtitle: 'Switch to a different product or tier',
                 onTap: () {
@@ -362,7 +532,6 @@ class PaymentsScreen extends StatelessWidget {
               ),
               _buildOptionTile(
                 context,
-                icon: Icons.payment,
                 title: 'Update payment method',
                 subtitle: 'Change debit order or EasyPay',
                 onTap: () {
@@ -372,7 +541,6 @@ class PaymentsScreen extends StatelessWidget {
               ),
               _buildOptionTile(
                 context,
-                icon: Icons.cancel,
                 title: 'Cancel policy',
                 subtitle: 'Cancel your current cover',
                 onTap: () {
@@ -389,40 +557,45 @@ class PaymentsScreen extends StatelessWidget {
 
   Widget _buildOptionTile(
     BuildContext context, {
-    required IconData icon,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: const Color(0xFF4FD8A4).withOpacity(0.1),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(
-          icon,
-          color: const Color(0xFF4FD8A4),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D2A22).withOpacity(0.6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.grey[600]!.withOpacity(0.35),
+          width: 0.8,
         ),
       ),
-      title: Text(
-        title,
-        style: GoogleFonts.inter(
-          fontWeight: FontWeight.bold,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        title: Text(
+          title,
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
         ),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: GoogleFonts.inter(
-          fontSize: 12,
-          color: isDark ? Colors.grey[400] : Colors.grey[600],
+        subtitle: Text(
+          subtitle,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: Colors.white.withOpacity(0.5),
+          ),
         ),
+        trailing: Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+          color: Colors.white.withOpacity(0.3),
+        ),
+        onTap: onTap,
       ),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-      onTap: onTap,
     );
   }
 
@@ -430,16 +603,18 @@ class PaymentsScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
         title: Text(
           'Cancel policy',
-          style: GoogleFonts.inter(
+          style: GoogleFonts.spaceGrotesk(
             fontWeight: FontWeight.bold,
+            color: Colors.white,
           ),
         ),
         content: Text(
           'Are you sure you want to cancel your policy? This action cannot be undone.',
           style: GoogleFonts.inter(
-            height: 1.5,
+            color: Colors.white.withOpacity(0.8),
           ),
         ),
         actions: [
@@ -448,7 +623,7 @@ class PaymentsScreen extends StatelessWidget {
             child: Text(
               'Keep',
               style: GoogleFonts.inter(
-                color: Colors.grey,
+                color: Colors.grey[400],
               ),
             ),
           ),
@@ -456,9 +631,13 @@ class PaymentsScreen extends StatelessWidget {
             onPressed: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Policy cancelled successfully'),
-                  backgroundColor: Colors.red,
+                SnackBar(
+                  content: Text(
+                    'Policy cancelled successfully',
+                    style: GoogleFonts.inter(color: Colors.white),
+                  ),
+                  backgroundColor: Colors.black.withOpacity(0.8),
+                  behavior: SnackBarBehavior.floating,
                 ),
               );
             },
@@ -468,6 +647,57 @@ class PaymentsScreen extends StatelessWidget {
             ),
             child: Text(
               'Cancel',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLogoutConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: Text(
+          'Logout',
+          style: GoogleFonts.spaceGrotesk(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to logout?',
+          style: GoogleFonts.inter(
+            color: Colors.white.withOpacity(0.8),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: Colors.grey[400],
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final userModel = Provider.of<UserModel>(context, listen: false);
+              userModel.logout();
+              Navigator.pop(context);
+              Navigator.pushReplacementNamed(context, '/landing');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              'Logout',
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.bold,
               ),
