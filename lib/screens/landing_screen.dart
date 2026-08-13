@@ -30,13 +30,6 @@ class LandingScreen extends StatelessWidget {
           ),
         ),
         actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.dark_mode_outlined,
-              color: Colors.white,
-            ),
-          ),
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: ElevatedButton(

@@ -235,28 +235,7 @@ class PlansScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: const Color(0xFF212121),
-        currentIndex: 0,
-        onTap: (index) {
-          if (index == 0) {
-            Navigator.pushReplacementNamed(context, '/landing');
-          } else if (index == 1) {
-            Navigator.pushNamed(context, '/claims');
-          } else if (index == 2) {
-            Navigator.pushNamed(context, '/payments');
-          } else if (index == 3) {
-            Navigator.pushNamed(context, '/profile');
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.description), label: 'Claims'),
-          BottomNavigationBarItem(icon: Icon(Icons.payments), label: 'Payments'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
-      ),
+      // NO BOTTOM NAVIGATION BAR HERE
     );
   }
 
@@ -433,12 +412,13 @@ class PlansScreen extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          // Choose button - same green color for all, no icon, bold text
+          // Choose button - redirects to registration
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                Navigator.pushNamed(context, '/cover_selection');
+                // Navigate to registration page
+                Navigator.pushNamed(context, '/registration');
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF49D86A),

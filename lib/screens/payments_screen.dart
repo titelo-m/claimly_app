@@ -412,85 +412,46 @@ class PaymentsScreen extends StatelessWidget {
   Widget _buildPaymentHistory(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    // Real payment history - using user model's payment history
-    // For now, showing sample data that would come from the backend
-    final payments = [
-      {'date': '05 Aug 2026', 'amount': 'R79', 'status': 'Paid'},
-      {'date': '05 Jul 2026', 'amount': 'R79', 'status': 'Paid'},
-      {'date': '05 Jun 2026', 'amount': 'R79', 'status': 'Paid'},
-    ];
-
-    return Column(
-      children: payments.map((payment) {
-        return Container(
-          padding: const EdgeInsets.all(16),
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0D2A22).withOpacity(0.6),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.grey[600]!.withOpacity(0.35),
-              width: 0.8,
+    // Payment history will come from backend/database
+    // This is a placeholder that will be replaced with real data
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D2A22).withOpacity(0.6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.grey[600]!.withOpacity(0.35),
+          width: 0.8,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.payment_outlined,
+            size: 48,
+            color: Colors.white.withOpacity(0.2),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Payment history will appear here',
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Colors.white.withOpacity(0.6),
             ),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    payment['date']!,
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    'Debit order',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: Colors.white.withOpacity(0.5),
-                    ),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  Text(
-                    payment['amount']!,
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF49D86A).withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: const Color(0xFF49D86A).withOpacity(0.3),
-                        width: 0.5,
-                      ),
-                    ),
-                    child: Text(
-                      payment['status']!,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF49D86A),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+          const SizedBox(height: 4),
+          Text(
+            'We\'re working on fetching your payment records.',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Colors.white.withOpacity(0.4),
+            ),
           ),
-        );
-      }).toList(),
+        ],
+      ),
     );
   }
 

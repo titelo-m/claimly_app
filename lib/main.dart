@@ -5,7 +5,7 @@ import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
 import 'screens/landing_screen.dart';
 import 'screens/registration_screen.dart';
-import 'screens/login_screen.dart';  // <-- Make sure this is here
+import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/cover_selection_screen.dart';
 import 'screens/confirm_cover_screen.dart';

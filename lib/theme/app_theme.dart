@@ -3,46 +3,68 @@ import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   static const Color primaryColor = Color(0xFF49D86A);
-  static const Color secondaryColor = Color(0xFF49D86A);
-  static const Color accentColor = Color(0xFF49D86A);
-  static const Color backgroundColor = Color(0xFF061815);
-  static const Color surfaceColor = Color(0xFF081D18);
-  static const Color cardColor = Color(0xFF0B2F27);
+  static const Color primaryDark = Color(0xFF0D2A22);
+  static const Color backgroundColor = Color(0xFF081814);
+  static const Color surfaceColor = Color(0xFF0D2A22);
+  static const Color cardColor = Color(0xFF0D2A22);
   
-  static final ThemeData lightTheme = _buildDarkTheme();
-  static final ThemeData darkTheme = _buildDarkTheme();
-
-  static ThemeData _buildDarkTheme() {
-    return ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.dark,
-      primaryColor: primaryColor,
-      scaffoldBackgroundColor: backgroundColor,
-      cardColor: cardColor,
-      dividerColor: Colors.white.withOpacity(0.08),
-      colorScheme: const ColorScheme.dark(
-        primary: primaryColor,
-        secondary: secondaryColor,
-        background: Color.fromARGB(255, 12, 53, 46),
-        surface: Color.fromARGB(255, 16, 67, 55),
+  static ThemeData lightTheme = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.light,
+    primaryColor: primaryColor,
+    scaffoldBackgroundColor: Colors.white,
+    colorScheme: const ColorScheme.light(
+      primary: primaryColor,
+      secondary: primaryColor,
+    ),
+    textTheme: GoogleFonts.interTextTheme(),
+    appBarTheme: const AppBarTheme(
+      elevation: 0,
+      centerTitle: false,
+      backgroundColor: Colors.transparent,
+      foregroundColor: Colors.black,
+    ),
+    cardTheme: CardTheme(
+      elevation: 2,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
       ),
-      textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme).apply(
-        bodyColor: Colors.white,
-        displayColor: Colors.white,
+    ),
+    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      backgroundColor: Colors.white,
+      selectedItemColor: primaryColor,
+      unselectedItemColor: Colors.grey,
+    ),
+  );
+  
+  static ThemeData darkTheme = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.dark,
+    primaryColor: primaryColor,
+    scaffoldBackgroundColor: backgroundColor,
+    colorScheme: const ColorScheme.dark(
+      primary: primaryColor,
+      secondary: primaryColor,
+    ),
+    textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+    appBarTheme: const AppBarTheme(
+      elevation: 0,
+      centerTitle: false,
+      backgroundColor: Colors.transparent,
+      foregroundColor: Colors.white,
+    ),
+    cardTheme: CardTheme(
+      elevation: 4,
+      color: cardColor.withOpacity(0.6),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
       ),
-      appBarTheme: const AppBarTheme(
-        elevation: 0,
-        centerTitle: true,
-        backgroundColor: Color.fromARGB(0, 44, 42, 42),
-        foregroundColor: Colors.white,
-      ),
-      cardTheme: CardTheme(
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        color: const Color.fromARGB(255, 12, 53, 44),
-      ),
-    );
-  }
+    ),
+    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      backgroundColor: Color(0xFF212121),
+      selectedItemColor: primaryColor,
+      unselectedItemColor: Colors.white54,
+    ),
+  );
 }
