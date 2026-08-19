@@ -1,12 +1,17 @@
 package com.claimly.backend.controller;
 
 import com.claimly.backend.dto.response.AdminClaimResponse;
+import com.claimly.backend.dto.response.AdminPaymentResponse;
 import com.claimly.backend.dto.response.AdminUserDetailResponse;
 import com.claimly.backend.dto.response.AdminUserSummaryResponse;
 import com.claimly.backend.dto.response.PendingPolicyResponse;
+import com.claimly.backend.dto.request.RecordPaymentRequest;
+import com.claimly.backend.dto.request.RejectProofRequest;
 import com.claimly.backend.service.AdminService;
 import com.claimly.backend.service.ClaimService;
+import com.claimly.backend.service.PaymentService;
 import com.claimly.backend.service.PolicyService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,8 +20,8 @@ import java.util.List;
 /**
  * ADMIN + SUPER_ADMIN only (enforced in SecurityConfig). Lets staff review
  * new registrations, approve/suspend customer accounts, approve pending
- * cover selections, and see claims. Claim *verification* itself is
- * SUPER_ADMIN only - see SuperAdminController.
+ * cover selections, record monthly payments, and see claims. Claim
+ * *verification* itself is SUPER_ADMIN only - see SuperAdminController.
  */
 @RestController
 @RequestMapping("/api/admin")
@@ -26,11 +31,14 @@ public class AdminController {
     private final AdminService adminService;
     private final ClaimService claimService;
     private final PolicyService policyService;
+    private final PaymentService paymentService;
 
-    public AdminController(AdminService adminService, ClaimService claimService, PolicyService policyService) {
+    public AdminController(AdminService adminService, ClaimService claimService,
+                            PolicyService policyService, PaymentService paymentService) {
         this.adminService = adminService;
         this.claimService = claimService;
         this.policyService = policyService;
+        this.paymentService = paymentService;
     }
 
     @GetMapping("/users")
@@ -74,6 +82,40 @@ public class AdminController {
     @PutMapping("/policies/{id}/approve")
     public ResponseEntity<Void> approvePolicy(@PathVariable Long id) {
         policyService.approveCover(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/payments/outstanding")
+    public ResponseEntity<List<AdminPaymentResponse>> getOutstandingPayments() {
+        return ResponseEntity.ok(paymentService.getOutstandingPayments());
+    }
+
+    @PutMapping("/payments/{id}/record")
+    public ResponseEntity<Void> recordPayment(
+            @PathVariable Long id,
+            @RequestHeader("Authorization") String authHeader,
+            @Valid @RequestBody RecordPaymentRequest request) {
+        String token = authHeader.substring(7);
+        paymentService.recordPayment(id, request.getPaymentMethod(), token);
+        return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/payments/{id}/approve-proof")
+    public ResponseEntity<Void> approveProof(
+            @PathVariable Long id,
+            @RequestHeader("Authorization") String authHeader) {
+        String token = authHeader.substring(7);
+        paymentService.approveProofOfPayment(id, token);
+        return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/payments/{id}/reject-proof")
+    public ResponseEntity<Void> rejectProof(
+            @PathVariable Long id,
+            @RequestHeader("Authorization") String authHeader,
+            @RequestBody RejectProofRequest request) {
+        String token = authHeader.substring(7);
+        paymentService.rejectProofOfPayment(id, request.getReason(), token);
         return ResponseEntity.ok().build();
     }
 }

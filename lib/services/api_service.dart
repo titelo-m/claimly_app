@@ -291,6 +291,48 @@ class ApiService {
     }
   }
 
+  // ============ PAYMENTS (CUSTOMER) ============
+
+  static Future<List<dynamic>> getMyPaymentHistory(String token) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/payments/history'),
+      headers: _authHeaders(token),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(_extractError(response));
+    }
+  }
+
+  static Future<Map<String, dynamic>> uploadProofOfPayment(
+    String token,
+    int paymentRecordId,
+    Uint8List bytes,
+    String filename,
+  ) async {
+    final uri = Uri.parse('$baseUrl/payments/$paymentRecordId/proof');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers['Authorization'] = 'Bearer $token';
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: filename,
+        contentType: _guessContentType(filename),
+      ),
+    );
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(_extractError(response));
+    }
+  }
+
   // ============ ADMIN (ADMIN + SUPER_ADMIN) ============
 
   static Future<List<dynamic>> getAdminUsers(String token) async {
@@ -542,6 +584,66 @@ class ApiService {
         'payoutAmount': payoutAmount,
         'payoutReference': payoutReference,
       }),
+    );
+    if (response.statusCode != 200) {
+      throw Exception(_extractError(response));
+    }
+  }
+
+  // ============ PAYMENTS (ADMIN / SUPER ADMIN) ============
+
+  static Future<List<dynamic>> getOutstandingPayments(String token) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/admin/payments/outstanding'),
+      headers: _authHeaders(token),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(_extractError(response));
+    }
+  }
+
+  static Future<void> recordPayment(
+    String token,
+    int paymentRecordId, {
+    required String paymentMethod,
+  }) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/admin/payments/$paymentRecordId/record'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'paymentMethod': paymentMethod}),
+    );
+    if (response.statusCode != 200) {
+      throw Exception(_extractError(response));
+    }
+  }
+
+  static Future<void> approveProofOfPayment(String token, int paymentRecordId) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/admin/payments/$paymentRecordId/approve-proof'),
+      headers: _authHeaders(token),
+    );
+    if (response.statusCode != 200) {
+      throw Exception(_extractError(response));
+    }
+  }
+
+  static Future<void> rejectProofOfPayment(
+    String token,
+    int paymentRecordId, {
+    String? reason,
+  }) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/admin/payments/$paymentRecordId/reject-proof'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({if (reason != null) 'reason': reason}),
     );
     if (response.statusCode != 200) {
       throw Exception(_extractError(response));

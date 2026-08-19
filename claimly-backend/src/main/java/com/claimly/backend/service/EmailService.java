@@ -145,6 +145,65 @@ public class EmailService {
         send(toEmail, subject, body);
     }
 
+    public void sendPaymentReminderEmail(String toEmail, String fullName, String amount, String dueDate) {
+        String subject = "Your Claimly payment is due soon";
+        String body = wrapper(
+                "Payment reminder",
+                "Hi " + escape(firstName(fullName)) + ",",
+                "Your next Claimly premium is coming up.",
+                calloutBlock("R" + escape(amount) + " due", "Due date: " + escape(dueDate)) +
+                        paragraph("Please make your payment before the due date to keep your cover active and avoid a late payment penalty.")
+        );
+        send(toEmail, subject, body);
+    }
+
+    public void sendPaymentOverdueSuspendedEmail(String toEmail, String fullName, String amountWithPenalty) {
+        String subject = "Your Claimly cover has been suspended";
+        String body = wrapper(
+                "Cover suspended - payment overdue",
+                "Hi " + escape(firstName(fullName)) + ",",
+                "We didn't receive your premium payment by the due date, so your cover has been suspended. A late payment penalty has been added.",
+                calloutBlock("R" + escape(amountWithPenalty) + " now due", "Includes a R20 late payment penalty") +
+                        paragraph("Your cover - and your ability to submit claims - will be reactivated as soon as your payment is received and confirmed.")
+        );
+        send(toEmail, subject, body);
+    }
+
+    public void sendPaymentReceivedEmail(String toEmail, String fullName, String amount) {
+        String subject = "Payment received - your cover is active";
+        String body = wrapper(
+                "Payment received",
+                "Hi " + escape(firstName(fullName)) + ",",
+                "Thanks - we've received your payment and your cover is active.",
+                calloutBlock("&#10003; R" + escape(amount) + " received", "Your account is now up to date.") +
+                        paragraph("Your next payment will be due in one month.")
+        );
+        send(toEmail, subject, body);
+    }
+
+    public void sendProofOfPaymentSubmittedEmail(String toEmail, String fullName) {
+        String subject = "We've received your proof of payment";
+        String body = wrapper(
+                "Proof of payment received",
+                "Hi " + escape(firstName(fullName)) + ",",
+                "Thanks for uploading your proof of payment. Our team will review it shortly.",
+                paragraph("We'll email you as soon as it's been checked - usually within 1 business day.")
+        );
+        send(toEmail, subject, body);
+    }
+
+    public void sendProofOfPaymentRejectedEmail(String toEmail, String fullName, String reason) {
+        String subject = "We couldn't confirm your proof of payment";
+        String body = wrapper(
+                "Proof of payment not accepted",
+                "Hi " + escape(firstName(fullName)) + ",",
+                "We reviewed the proof of payment you uploaded, but we weren't able to confirm it.",
+                calloutBlock("Reason", reason != null && !reason.isBlank() ? escape(reason) : "Please contact support for more detail.") +
+                        paragraph("Please upload a clearer proof of payment, or a new one if the original payment didn't go through, and we'll take another look.")
+        );
+        send(toEmail, subject, body);
+    }
+
     private void send(String toEmail, String subject, String htmlBody) {
         try {
             MimeMessage message = mailSender.createMimeMessage();

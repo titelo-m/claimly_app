@@ -23,6 +23,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   List<dynamic> _admins = [];
   List<dynamic> _pendingPolicies = [];
   List<dynamic> _conversations = [];
+  List<dynamic> _outstandingPayments = [];
   String? _token;
   late TabController _tabController;
 
@@ -34,7 +35,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   void initState() {
     super.initState();
     final userModel = Provider.of<UserModel>(context, listen: false);
-    final tabCount = userModel.isSuperAdmin ? 5 : 4;
+    final tabCount = userModel.isSuperAdmin ? 6 : 5;
     _tabController = TabController(length: tabCount, vsync: this);
     _loadEverything();
   }
@@ -63,6 +64,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ApiService.getAdminClaims(token),
         ApiService.getPendingPolicies(token),
         ApiService.getAdminConversations(token),
+        ApiService.getOutstandingPayments(token),
         if (userModel.isSuperAdmin) ApiService.getAdmins(token),
       ]);
 
@@ -71,7 +73,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _claims = results[1];
         _pendingPolicies = results[2];
         _conversations = results[3];
-        if (userModel.isSuperAdmin) _admins = results[4];
+        _outstandingPayments = results[4];
+        if (userModel.isSuperAdmin) _admins = results[5];
       });
     } catch (e) {
       setState(() {
@@ -85,7 +88,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   @override
   Widget build(BuildContext context) {
     final userModel = Provider.of<UserModel>(context);
-    final tabs = <String>['Overview', 'Users', 'Claims', 'Chat', if (userModel.isSuperAdmin) 'Admins'];
+    final tabs = <String>['Overview', 'Users', 'Claims', 'Payments', 'Chat', if (userModel.isSuperAdmin) 'Admins'];
 
     return Scaffold(
         backgroundColor: _bg,
@@ -143,6 +146,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       _buildOverviewTab(userModel),
                       _buildUsersTab(userModel),
                       _buildClaimsTab(userModel),
+                      _buildPaymentsTab(),
                       _buildChatTab(),
                       if (userModel.isSuperAdmin) _buildAdminsTab(),
                     ],
@@ -232,6 +236,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               }),
               _statCard('Covers pending', '${_pendingPolicies.length}', Icons.shield_moon,
                   Colors.orangeAccent, () {}),
+              _statCard(
+                'Overdue',
+                '${_outstandingPayments.where((p) => p['status'] == 'OVERDUE').length}',
+                Icons.money_off,
+                Colors.red,
+                () => _tabController.animateTo(3),
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -1012,8 +1023,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
-                labelText: 'Payout amount (R)',
+                labelText: 'Payout amount',
                 labelStyle: TextStyle(color: Colors.white54),
+                prefixText: 'R ',
+                prefixStyle: TextStyle(color: Colors.white70),
                 hintText: 'e.g. 5000',
                 hintStyle: TextStyle(color: Colors.white38),
               ),
@@ -1046,13 +1059,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
 
     if (confirmed == true) {
-      final amount = amountController.text.trim();
+      // Defensive cleanup - strip anything but digits and a decimal point,
+      // in case someone types "R5000" or "5,000" despite the prefix.
+      final amount = amountController.text
+          .trim()
+          .replaceAll(RegExp(r'[^0-9.]'), '');
       final reference = referenceController.text.trim();
-      if (amount.isEmpty || reference.isEmpty) {
+      if (amount.isEmpty || double.tryParse(amount) == null || reference.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Please enter both an amount and a reference'),
+              content: Text('Please enter a valid amount and a reference'),
               backgroundColor: Colors.red,
             ),
           );
@@ -1105,6 +1122,275 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             declineReason: reasonController.text.trim().isEmpty
                 ? null
                 : reasonController.text.trim(),
+          ));
+    }
+  }
+
+  // ============ PAYMENTS TAB ============
+
+  Widget _buildPaymentsTab() {
+    if (_outstandingPayments.isEmpty) {
+      return _buildEmptyState('No outstanding payments right now', Icons.payments_outlined);
+    }
+
+    final overdue = _outstandingPayments.where((p) => p['status'] == 'OVERDUE').toList();
+    final pending = _outstandingPayments.where((p) => p['status'] != 'OVERDUE').toList();
+
+    return RefreshIndicator(
+      onRefresh: _loadEverything,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (overdue.isNotEmpty) ...[
+            Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 18),
+                const SizedBox(width: 6),
+                Text(
+                  'Overdue - cover suspended (${overdue.length})',
+                  style: GoogleFonts.spaceGrotesk(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...overdue.map((p) => _buildPaymentCard(p)),
+            const SizedBox(height: 20),
+          ],
+          if (pending.isNotEmpty) ...[
+            Text(
+              'Due soon (${pending.length})',
+              style: GoogleFonts.spaceGrotesk(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...pending.map((p) => _buildPaymentCard(p)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentCard(dynamic p) {
+    final status = p['status'] as String? ?? 'PENDING';
+    final isOverdue = status == 'OVERDUE';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _card.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isOverdue ? Colors.red.withOpacity(0.3) : Colors.grey[700]!.withOpacity(0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      p['userFullName'] ?? '',
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      '${p['userEmail'] ?? ''} · ${p['productType'] ?? ''} ${p['tier'] ?? ''}',
+                      style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                'R${p['totalDue'] ?? '-'}',
+                style: GoogleFonts.spaceGrotesk(
+                  color: isOverdue ? Colors.red : Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          if (isOverdue && (p['penaltyAmount'] ?? 0).toString() != '0')
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Includes R${p['penaltyAmount']} late payment penalty',
+                style: GoogleFonts.inter(color: Colors.red[200], fontSize: 11),
+              ),
+            ),
+          if (p['proofOfPaymentStatus'] == 'PENDING_REVIEW') ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.receipt_long, color: Colors.blue, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Proof of payment submitted',
+                      style: GoogleFonts.inter(color: Colors.blue[100], fontSize: 12),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => _openPaymentProof(p['proofOfPaymentUrl']),
+                    child: Text('View', style: GoogleFonts.inter(color: _green, fontSize: 12)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _actionButton('Approve', Icons.check, _green,
+                    () => _approveProof(p['id'])),
+                const SizedBox(width: 8),
+                _actionButton('Reject', Icons.close, Colors.redAccent,
+                    () => _rejectProof(p['id'])),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _actionButton('Record Payment', Icons.check_circle_outline, _green,
+                    () => _recordPayment(p['id'])),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _recordPayment(int paymentRecordId) async {
+    String selectedMethod = 'EFT';
+    final methods = ['EFT', 'Cash', 'Card', 'Other'];
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: _card,
+          title: Text('Record payment', style: GoogleFonts.spaceGrotesk(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'How did the customer pay?',
+                style: GoogleFonts.inter(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: methods.map((m) {
+                  final selected = m == selectedMethod;
+                  return ChoiceChip(
+                    label: Text(m),
+                    selected: selected,
+                    onSelected: (_) => setDialogState(() => selectedMethod = m),
+                    selectedColor: _green,
+                    backgroundColor: _bg,
+                    labelStyle: TextStyle(color: selected ? Colors.black : Colors.white70),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(backgroundColor: _green),
+              child: const Text('Confirm payment', style: TextStyle(color: Colors.black)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      await _runAction(() => ApiService.recordPayment(
+            _token!,
+            paymentRecordId,
+            paymentMethod: selectedMethod,
+          ));
+    }
+  }
+
+  Future<void> _openPaymentProof(String? fileUrl) async {
+    if (fileUrl == null) return;
+    final url = Uri.parse('${ApiService.mediaBaseUrl}$fileUrl');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open that file'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _approveProof(int paymentRecordId) =>
+      _runAction(() => ApiService.approveProofOfPayment(_token!, paymentRecordId));
+
+  Future<void> _rejectProof(int paymentRecordId) async {
+    final reasonController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: _card,
+        title: Text('Reject proof of payment', style: GoogleFonts.spaceGrotesk(color: Colors.white)),
+        content: TextField(
+          controller: reasonController,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Why is this being rejected? (shown to the customer)',
+            hintStyle: TextStyle(color: Colors.white38),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _runAction(() => ApiService.rejectProofOfPayment(
+            _token!,
+            paymentRecordId,
+            reason: reasonController.text.trim().isEmpty ? null : reasonController.text.trim(),
           ));
     }
   }

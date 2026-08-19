@@ -54,6 +54,10 @@ public class ClaimService {
         if (user.getPolicy() == null) {
             throw new RuntimeException("User has no active policy");
         }
+
+        if (user.getPolicy().getStatus() == com.claimly.backend.entity.enums.PolicyStatus.LAPSED) {
+            throw new RuntimeException("Your cover is currently suspended due to a missed payment. Please settle your account to submit a claim.");
+        }
         
         if (!isValidClaimType(request.getClaimType())) {
             throw new RuntimeException("Invalid claim type");

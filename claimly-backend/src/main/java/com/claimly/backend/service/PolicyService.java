@@ -21,13 +21,15 @@ public class PolicyService {
     private final PolicyRepository policyRepository;
     private final JwtService jwtService;
     private final EmailService emailService;
+    private final PaymentService paymentService;
     
     public PolicyService(UserRepository userRepository, PolicyRepository policyRepository,
-                          JwtService jwtService, EmailService emailService) {
+                          JwtService jwtService, EmailService emailService, PaymentService paymentService) {
         this.userRepository = userRepository;
         this.policyRepository = policyRepository;
         this.jwtService = jwtService;
         this.emailService = emailService;
+        this.paymentService = paymentService;
     }
     
     /**
@@ -104,6 +106,10 @@ public class PolicyService {
         User user = policy.getUser();
         emailService.sendCoverApprovedEmail(user.getEmail(), user.getFullName(),
                 policy.getProductType(), policy.getTier(), policy.getPolicyNumber());
+
+        // Billing starts the moment cover actually goes live, not when it
+        // was first selected - the first payment is due 1 month from today.
+        paymentService.createInitialBillingRecord(policy);
     }
 
     public java.util.List<com.claimly.backend.dto.response.PendingPolicyResponse> getPendingPolicies() {
