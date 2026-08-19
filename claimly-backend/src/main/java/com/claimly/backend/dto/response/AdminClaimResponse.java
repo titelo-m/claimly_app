@@ -20,4 +20,7 @@ public class AdminClaimResponse {
     private String userFullName;
     private String userEmail;
     private LocalDateTime submittedAt;
+    private String payoutAmount;
+    private String payoutReference;
+    private LocalDateTime paidAt;
 }

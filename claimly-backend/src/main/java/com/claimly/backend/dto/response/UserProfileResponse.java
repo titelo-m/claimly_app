@@ -40,6 +40,7 @@ public class UserProfileResponse {
     private String benefitDetails;
     private LocalDateTime nextDebitDate;
     private LocalDateTime waitingPeriodEnds;
+    private String policyStatus;
 
     private List<UserDocumentResponse> documents;
 }

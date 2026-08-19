@@ -32,6 +32,7 @@ public class AdminUserDetailResponse {
     private String profilePictureUrl;
 
     private boolean hasCover;
+    private String policyStatus;
     private String productType;
     private String tier;
     private String paymentMethod;

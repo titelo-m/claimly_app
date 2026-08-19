@@ -3,16 +3,67 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user_model.dart';
+import '../services/api_service.dart';
+import '../services/storage_service.dart';
 
-class ClaimsScreen extends StatelessWidget {
+class ClaimsScreen extends StatefulWidget {
   const ClaimsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final userModel = Provider.of<UserModel>(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final hasClaims = userModel.claims.isNotEmpty;
+  State<ClaimsScreen> createState() => _ClaimsScreenState();
+}
 
+class _ClaimsScreenState extends State<ClaimsScreen> {
+  List<dynamic> _claims = [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClaims();
+  }
+
+  Future<void> _loadClaims() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final token = await StorageService.getToken();
+      if (token == null) throw Exception('You need to be signed in to do that.');
+      final claims = await ApiService.getClaims(token);
+      if (!mounted) return;
+      setState(() => _claims = claims);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _openWhatsApp() async {
+    // Pre-filled conversation to the Claimly claims number - link-out only,
+    // no chatbot/backend logic (matches the requirements doc's stated scope).
+    final uri = Uri.parse(
+      'https://wa.me/27600000000?text=${Uri.encodeComponent("Hi Claimly, I'd like help with a claim.")}',
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open WhatsApp'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF081814),
       body: Column(
@@ -32,7 +83,6 @@ class ClaimsScreen extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Title on the left
                 Text(
                   'Claims',
                   style: GoogleFonts.spaceGrotesk(
@@ -41,27 +91,34 @@ class ClaimsScreen extends StatelessWidget {
                     color: Colors.white,
                   ),
                 ),
-                // Logout Button
-                TextButton.icon(
-                  onPressed: () {
-                    _showLogoutConfirmation(context);
-                  },
-                  icon: Icon(
-                    Icons.logout,
-                    color: Colors.white.withOpacity(0.6),
-                    size: 20,
-                  ),
-                  label: Text(
-                    'Logout',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: Colors.white.withOpacity(0.6),
-                      fontWeight: FontWeight.w500,
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: _loadClaims,
+                      icon: Icon(Icons.refresh, color: Colors.white.withOpacity(0.6)),
                     ),
-                  ),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
+                    TextButton.icon(
+                      onPressed: () {
+                        _showLogoutConfirmation(context);
+                      },
+                      icon: Icon(
+                        Icons.logout,
+                        color: Colors.white.withOpacity(0.6),
+                        size: 20,
+                      ),
+                      label: Text(
+                        'Logout',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.6),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -69,120 +126,143 @@ class ClaimsScreen extends StatelessWidget {
 
           // Scrollable Content
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 20),
+            child: RefreshIndicator(
+              onRefresh: _loadClaims,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 20),
 
-                  // Submit new claim button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pushNamed(context, '/submit_claim');
-                      },
-                      icon: Text(
-                        '+',
-                        style: GoogleFonts.inter(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w300,
-                          color: Colors.black,
+                    // Submit new claim button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/submit_claim');
+                        },
+                        icon: Text(
+                          '+',
+                          style: GoogleFonts.inter(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w300,
+                            color: Colors.black,
+                          ),
                         ),
-                      ),
-                      label: Text(
-                        'Submit a new claim',
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
+                        label: Text(
+                          'Submit a new claim',
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
                         ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF49D86A),
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF49D86A),
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // WhatsApp option - no icon on right
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF25D366).withOpacity(0.1),
+                    // WhatsApp option - now actually opens WhatsApp
+                    InkWell(
+                      onTap: _openWhatsApp,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFF25D366).withOpacity(0.3),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF25D366).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFF25D366).withOpacity(0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF25D366),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.chat,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Prefer WhatsApp?',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Open a pre-filled chat with our claims team.',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      color: Colors.white.withOpacity(0.6),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.arrow_forward_ios,
+                                color: Colors.white.withOpacity(0.3), size: 16),
+                          ],
+                        ),
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF25D366),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.chat,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Prefer WhatsApp?',
-                                style: GoogleFonts.inter(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              Text(
-                                'Open a pre-filled chat with our claims team.',
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: Colors.white.withOpacity(0.6),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // No icon on the right
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-                  // Your claims section
-                  Text(
-                    'Your claims',
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                    // Your claims section
+                    Text(
+                      'Your claims',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 12),
 
-                  // Claims list or empty state
-                  if (!hasClaims)
-                    _buildEmptyClaims()
-                  else
-                    ...userModel.claims.map((claim) => _buildClaimCard(claim, context)),
-                  
-                  const SizedBox(height: 80),
-                ],
+                    if (_isLoading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 40),
+                        child: Center(
+                          child: CircularProgressIndicator(color: Color(0xFF49D86A)),
+                        ),
+                      )
+                    else if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: Text(
+                          _error!,
+                          style: GoogleFonts.inter(color: Colors.white70),
+                        ),
+                      )
+                    else if (_claims.isEmpty)
+                      _buildEmptyClaims()
+                    else
+                      ..._claims.map((claim) => _buildClaimCard(claim, context)),
+
+                    const SizedBox(height: 80),
+                  ],
+                ),
               ),
             ),
           ),
@@ -259,15 +339,19 @@ class ClaimsScreen extends StatelessWidget {
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  Widget _buildClaimCard(Claim claim, BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    // Get status color
+  Widget _buildClaimCard(dynamic claim, BuildContext context) {
+    final status = claim['status'] as String? ?? 'SUBMITTED';
+    final claimType = claim['claimType'] as String? ?? 'Claim';
+    final claimReference = claim['claimReference'] as String? ?? '';
+    final submittedAt = claim['submittedAt'] != null
+        ? DateTime.tryParse(claim['submittedAt'])
+        : null;
+
     Color getStatusColor() {
-      switch (claim.status) {
+      switch (status) {
         case 'SUBMITTED':
           return Colors.orange;
-        case 'UNDER REVIEW':
+        case 'UNDER_REVIEW':
           return Colors.blue;
         case 'APPROVED':
           return Colors.green;
@@ -281,12 +365,13 @@ class ClaimsScreen extends StatelessWidget {
     }
 
     return GestureDetector(
-      onTap: () {
-        Navigator.pushNamed(
+      onTap: () async {
+        await Navigator.pushNamed(
           context,
           '/claim_detail',
-          arguments: claim,
+          arguments: claimReference,
         );
+        _loadClaims();
       },
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -301,7 +386,6 @@ class ClaimsScreen extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Claim type icon
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -309,9 +393,9 @@ class ClaimsScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
-                claim.type == 'Illness'
+                claimType == 'Illness'
                     ? Icons.medical_services
-                    : claim.type == 'Injury / Accident'
+                    : claimType == 'Injury / Accident'
                         ? Icons.healing
                         : Icons.work_off,
                 color: const Color(0xFF49D86A),
@@ -324,7 +408,7 @@ class ClaimsScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    claim.id,
+                    claimReference,
                     style: GoogleFonts.spaceGrotesk(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -333,7 +417,7 @@ class ClaimsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    claim.type,
+                    claimType,
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       color: Colors.white.withOpacity(0.6),
@@ -341,7 +425,7 @@ class ClaimsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    _formatDate(claim.date),
+                    submittedAt != null ? _formatDate(submittedAt) : 'Recent',
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       color: Colors.white.withOpacity(0.4),
@@ -350,7 +434,6 @@ class ClaimsScreen extends StatelessWidget {
                 ],
               ),
             ),
-            // Status badge
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
@@ -361,7 +444,7 @@ class ClaimsScreen extends StatelessWidget {
                 ),
               ),
               child: Text(
-                claim.status,
+                status.replaceAll('_', ' '),
                 style: GoogleFonts.inter(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,

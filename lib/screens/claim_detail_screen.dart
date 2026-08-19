@@ -1,401 +1,113 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../models/user_model.dart';
+import '../services/api_service.dart';
+import '../services/storage_service.dart';
 
-class ClaimDetailScreen extends StatelessWidget {
+class ClaimDetailScreen extends StatefulWidget {
   const ClaimDetailScreen({super.key});
 
   @override
+  State<ClaimDetailScreen> createState() => _ClaimDetailScreenState();
+}
+
+class _ClaimDetailScreenState extends State<ClaimDetailScreen> {
+  static const _bg = Color(0xFF081814);
+  static const _card = Color(0xFF0D2A22);
+  static const _green = Color(0xFF49D86A);
+
+  Map<String, dynamic>? _claim;
+  bool _isLoading = true;
+  String? _error;
+  String? _claimReference;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_claimReference == null) {
+      _claimReference = ModalRoute.of(context)!.settings.arguments as String;
+      _loadClaim();
+    }
+  }
+
+  Future<void> _loadClaim() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final token = await StorageService.getToken();
+      if (token == null) throw Exception('You need to be signed in to do that.');
+      final claim = await ApiService.getClaimDetail(token, _claimReference!);
+      if (!mounted) return;
+      setState(() => _claim = claim);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'SUBMITTED':
+        return Colors.orange;
+      case 'UNDER_REVIEW':
+        return Colors.blue;
+      case 'APPROVED':
+        return Colors.green;
+      case 'PAID':
+        return _green;
+      case 'DECLINED':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatDateTime(String? iso) {
+    if (iso == null) return '';
+    final date = DateTime.tryParse(iso);
+    if (date == null) return '';
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}, '
+        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final claim = ModalRoute.of(context)!.settings.arguments as Claim;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // Get status color
-    Color getStatusColor() {
-      switch (claim.status) {
-        case 'SUBMITTED':
-          return Colors.orange;
-        case 'UNDER REVIEW':
-          return Colors.blue;
-        case 'APPROVED':
-          return Colors.green;
-        case 'PAID':
-          return const Color(0xFF00D4AA);
-        case 'DECLINED':
-          return Colors.red;
-        default:
-          return Colors.grey;
-      }
-    }
-
-    // Get status steps
-    List<Map<String, String>> getStatusSteps() {
-      final steps = [
-        {'label': 'Submitted', 'time': claim.date.toLocal().toString().substring(0, 16)},
-        {'label': 'Under Review', 'time': ''},
-        {'label': 'Approved', 'time': ''},
-        {'label': 'Paid', 'time': ''},
-      ];
-
-      // Update based on current status
-      if (claim.status == 'SUBMITTED') {
-        steps[0]['time'] = claim.date.toLocal().toString().substring(0, 16);
-      } else if (claim.status == 'UNDER REVIEW') {
-        steps[0]['time'] = claim.date.toLocal().toString().substring(0, 16);
-        steps[1]['time'] = DateTime.now().toLocal().toString().substring(0, 16);
-      } else if (claim.status == 'APPROVED' || claim.status == 'PAID') {
-        steps[0]['time'] = claim.date.toLocal().toString().substring(0, 16);
-        steps[1]['time'] = DateTime.now().subtract(const Duration(hours: 2)).toLocal().toString().substring(0, 16);
-        steps[2]['time'] = DateTime.now().subtract(const Duration(hours: 1)).toLocal().toString().substring(0, 16);
-      }
-      if (claim.status == 'PAID') {
-        steps[3]['time'] = DateTime.now().toLocal().toString().substring(0, 16);
-      }
-
-      return steps;
-    }
-
     return Scaffold(
+      backgroundColor: _bg,
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              claim.id,
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-            Text(
-              claim.type,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: isDark ? Colors.grey[400] : Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: Colors.transparent,
+        backgroundColor: _bg,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(
+          _claimReference ?? 'Claim',
+          style: GoogleFonts.spaceGrotesk(fontWeight: FontWeight.bold, color: Colors.white),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Status header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Submitted ${claim.date.day.toString().padLeft(2, '0')}/${claim.date.month.toString().padLeft(2, '0')}/${claim.date.year}',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: isDark ? Colors.grey[400] : Colors.grey[600],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: getStatusColor().withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: getStatusColor().withOpacity(0.3),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: _green))
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(color: Colors.white70),
                     ),
                   ),
-                  child: Text(
-                    claim.status,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: getStatusColor(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Progress tracker
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0F4A43) : Colors.grey[50],
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                children: getStatusSteps().asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final step = entry.value;
-                  final isCompleted = step['time']!.isNotEmpty;
-                  final isLast = index == getStatusSteps().length - 1;
-
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Circle and line
-                      Column(
-                        children: [
-                          Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: isCompleted 
-                                  ? const Color(0xFF00D4AA)
-                                  : isDark 
-                                      ? Colors.grey[800]
-                                      : Colors.grey[300],
-                              border: Border.all(
-                                color: isCompleted 
-                                    ? const Color(0xFF00D4AA)
-                                    : isDark 
-                                        ? Colors.grey[600]!
-                                        : Colors.grey[400]!,
-                                width: 2,
-                              ),
-                            ),
-                            child: Center(
-                              child: isCompleted
-                                  ? const Icon(
-                                      Icons.check,
-                                      color: Colors.white,
-                                      size: 18,
-                                    )
-                                  : Text(
-                                      '${index + 1}',
-                                      style: GoogleFonts.inter(
-                                        color: isDark ? Colors.grey[400] : Colors.grey[600],
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          if (!isLast)
-                            Container(
-                              width: 2,
-                              height: 40,
-                              color: isCompleted 
-                                  ? const Color(0xFF00D4AA)
-                                  : isDark 
-                                      ? Colors.grey[800]
-                                      : Colors.grey[300],
-                            ),
-                        ],
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              step['label']!,
-                              style: GoogleFonts.inter(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: isCompleted 
-                                    ? (isDark ? Colors.white : Colors.black)
-                                    : isDark 
-                                        ? Colors.grey[600]
-                                        : Colors.grey[400],
-                              ),
-                            ),
-                            if (step['time']!.isNotEmpty)
-                              Text(
-                                step['time']!,
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  color: isDark ? Colors.grey[400] : Colors.grey[600],
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // What you told us
-            Text(
-              'What you told us',
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0F4A43) : Colors.grey[50],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
-                ),
-              ),
-              child: Text(
-                claim.description.isNotEmpty ? claim.description : 'A lot happened.',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  height: 1.5,
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Documents
-            if (claim.documents.isNotEmpty) ...[
-              Text(
-                'Documents',
-                style: GoogleFonts.inter(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ...claim.documents.map((doc) => Container(
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF0F4A43) : Colors.grey[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.insert_drive_file,
-                          color: Color(0xFF4FD8A4),
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            doc,
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.download,
-                            size: 20,
-                          ),
-                          onPressed: () {
-                            // Download document
-                          },
-                        ),
-                      ],
-                    ),
-                  )),
-              const SizedBox(height: 24),
-            ],
-
-            // History
-            Text(
-              'History',
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0F4A43) : Colors.grey[50],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.history,
-                    color: Color(0xFF4FD8A4),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Submitted',
-                        style: GoogleFonts.inter(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        '${claim.date.day.toString().padLeft(2, '0')}/${claim.date.month.toString().padLeft(2, '0')}/${claim.date.year}, ${claim.date.hour.toString().padLeft(2, '0')}:${claim.date.minute.toString().padLeft(2, '0')}',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: isDark ? Colors.grey[400] : Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Query on WhatsApp button
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () async {
-                  final url = Uri.parse(
-                    'https://wa.me/27761234567?text=Hi%20Claimly%2C%20I%20have%20a%20query%20about%20claim%20${claim.id}',
-                  );
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalApplication);
-                  }
-                },
-                icon: const Icon(
-                  Icons.chat,
-                  color: Color(0xFF25D366),
-                ),
-                label: Text(
-                  'Query this claim on WhatsApp',
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF25D366),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: const BorderSide(
-                    color: Color(0xFF25D366),
-                    width: 1.5,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 80),
-          ],
-        ),
-      ),
+                )
+              : _buildContent(),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
+        backgroundColor: const Color(0xFF212121),
         currentIndex: 1,
+        selectedItemColor: _green,
+        unselectedItemColor: Colors.white.withOpacity(0.5),
         onTap: (index) {
           if (index == 0) {
             Navigator.pushReplacementNamed(context, '/dashboard');
@@ -412,6 +124,385 @@ class ClaimDetailScreen extends StatelessWidget {
           BottomNavigationBarItem(icon: Icon(Icons.description), label: 'Claims'),
           BottomNavigationBarItem(icon: Icon(Icons.payments), label: 'Payments'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    final claim = _claim!;
+    final status = claim['status'] as String? ?? 'SUBMITTED';
+    final documents = (claim['documents'] as List?) ?? [];
+    final history = (claim['history'] as List?) ?? [];
+
+    return RefreshIndicator(
+      onRefresh: _loadClaim,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    claim['claimType'] ?? 'Claim',
+                    style: GoogleFonts.inter(fontSize: 14, color: Colors.white70),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _statusColor(status).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: _statusColor(status).withOpacity(0.3)),
+                  ),
+                  child: Text(
+                    status.replaceAll('_', ' '),
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: _statusColor(status),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Status stepper, driven by real timestamps
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: _card.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                children: _buildSteps(claim, status),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            if (status == 'DECLINED' && (claim['declineReason'] ?? '').toString().isNotEmpty) ...[
+              _sectionCard(
+                icon: Icons.info_outline,
+                iconColor: Colors.red,
+                title: 'Why this was declined',
+                child: Text(
+                  claim['declineReason'],
+                  style: GoogleFonts.inter(color: Colors.white, fontSize: 14, height: 1.5),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+
+            if (status == 'PAID') ...[
+              _sectionCard(
+                icon: Icons.payments,
+                iconColor: _green,
+                title: 'Payout details',
+                borderColor: _green.withOpacity(0.3),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'R${claim['payoutAmount'] ?? '-'}',
+                      style: GoogleFonts.spaceGrotesk(
+                        color: _green,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Reference: ${claim['payoutReference'] ?? '-'}',
+                      style: GoogleFonts.inter(color: Colors.white70, fontSize: 13),
+                    ),
+                    if (claim['paidAt'] != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Paid on ${_formatDateTime(claim['paidAt'])}',
+                        style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+
+            Text(
+              'What you told us',
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _card.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                (claim['description'] ?? '').toString().isNotEmpty
+                    ? claim['description']
+                    : 'No description provided.',
+                style: GoogleFonts.inter(color: Colors.white, fontSize: 14, height: 1.5),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            if (documents.isNotEmpty) ...[
+              Text(
+                'Documents',
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...documents.map((doc) => _buildDocumentTile(doc)),
+              const SizedBox(height: 24),
+            ],
+
+            if (history.isNotEmpty) ...[
+              Text(
+                'History',
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...history.map((h) => _buildHistoryTile(h)),
+              const SizedBox(height: 20),
+            ],
+
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final url = Uri.parse(
+                    'https://wa.me/27600000000?text=${Uri.encodeComponent("Hi Claimly, I have a query about claim ${claim['claimReference']}")}',
+                  );
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  }
+                },
+                icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
+                label: Text(
+                  'Query this claim on WhatsApp',
+                  style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF25D366),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: const BorderSide(color: Color(0xFF25D366), width: 1.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 80),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildSteps(Map<String, dynamic> claim, String status) {
+    final stepOrder = ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'PAID'];
+    final labels = ['Submitted', 'Under Review', 'Approved', 'Paid'];
+    final times = [claim['submittedAt'], claim['reviewedAt'], claim['approvedAt'], claim['paidAt']];
+    final isDeclined = status == 'DECLINED';
+    final currentIndex = isDeclined ? 1 : stepOrder.indexOf(status);
+
+    return List.generate(labels.length, (index) {
+      final isCompleted = !isDeclined && index <= currentIndex && times[index] != null;
+      final isLast = index == labels.length - 1;
+
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isCompleted ? _green : Colors.grey[800],
+                  border: Border.all(
+                    color: isCompleted ? _green : Colors.grey[600]!,
+                    width: 2,
+                  ),
+                ),
+                child: Center(
+                  child: isCompleted
+                      ? const Icon(Icons.check, color: Colors.black, size: 18)
+                      : Text(
+                          '${index + 1}',
+                          style: GoogleFonts.inter(
+                            color: Colors.grey[400],
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                ),
+              ),
+              if (!isLast)
+                Container(
+                  width: 2,
+                  height: 40,
+                  color: isCompleted ? _green : Colors.grey[800],
+                ),
+            ],
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    labels[index],
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: isCompleted ? Colors.white : Colors.white38,
+                    ),
+                  ),
+                  if (times[index] != null)
+                    Text(
+                      _formatDateTime(times[index]),
+                      style: GoogleFonts.inter(fontSize: 12, color: Colors.white54),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _sectionCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required Widget child,
+    Color? borderColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _card.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor ?? Colors.grey[700]!.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: iconColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDocumentTile(dynamic doc) {
+    final filePath = (doc['filePath'] ?? '').toString().replaceAll('\\', '/');
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: _card.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            doc['verified'] == true ? Icons.verified : Icons.insert_drive_file,
+            color: _green,
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              doc['fileName'] ?? '',
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.white),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.open_in_new, size: 18, color: Colors.white54),
+            onPressed: filePath.isEmpty
+                ? null
+                : () async {
+                    final url = Uri.parse('${ApiService.mediaBaseUrl}/$filePath');
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    }
+                  },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistoryTile(dynamic h) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: _card.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.history, color: _green, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  h['comment'] ?? '${h['fromStatus'] ?? ''} → ${h['toStatus'] ?? ''}',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13),
+                ),
+                if (h['changedBy'] != null)
+                  Text(
+                    'by ${h['changedBy']}',
+                    style: GoogleFonts.inter(fontSize: 11, color: Colors.white38),
+                  ),
+                Text(
+                  _formatDateTime(h['changedAt']),
+                  style: GoogleFonts.inter(fontSize: 12, color: Colors.white54),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

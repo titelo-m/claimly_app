@@ -49,6 +49,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/profile/**").authenticated()
                         .requestMatchers("/api/payments/**").authenticated()
                         .requestMatchers("/api/notifications/**").authenticated()
+                        .requestMatchers("/api/chat/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

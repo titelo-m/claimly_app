@@ -163,6 +163,7 @@ public class ProfileService {
                 .benefitDetails(policy != null ? policy.getBenefitDetails() : null)
                 .nextDebitDate(policy != null ? policy.getNextDebitDate() : null)
                 .waitingPeriodEnds(policy != null ? policy.getWaitingPeriodEnds() : null)
+                .policyStatus(policy != null ? policy.getStatus().name() : null)
                 .documents(documents)
                 .build();
     }

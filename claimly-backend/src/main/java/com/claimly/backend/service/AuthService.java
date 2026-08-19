@@ -17,8 +17,6 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -41,7 +39,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     
     @Autowired
-    private JavaMailSender mailSender;
+    private EmailService emailService;
     
     public AuthService(UserRepository userRepository, OTPRepository otpRepository,
                        PasswordEncoder passwordEncoder, JwtService jwtService,
@@ -201,25 +199,7 @@ public class AuthService {
         
         otpRepository.save(otp);
         
-        // Send email
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setTo(email);
-            message.setSubject("Claimly - Email Verification Code");
-            message.setText(
-                "Hello " + user.getFullName() + ",\n\n" +
-                "Your Claimly verification code is: " + otpCode + "\n\n" +
-                "This code expires in 5 minutes.\n\n" +
-                "If you didn't request this code, please ignore this email.\n\n" +
-                "Thank you,\n" +
-                "The Claimly Team"
-            );
-            mailSender.send(message);
-            System.out.println("Email OTP sent successfully to: " + email);
-        } catch (Exception e) {
-            System.out.println("Failed to send email: " + e.getMessage());
-            e.printStackTrace();
-        }
+        emailService.sendOtpEmail(email, user.getFullName(), otpCode);
     }
     
     public boolean verifyOTP(OTPRequest request) {

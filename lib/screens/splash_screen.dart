@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../models/user_model.dart';
+import '../services/api_service.dart';
+import '../services/storage_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -12,9 +16,39 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 2), () {
-      Navigator.pushReplacementNamed(context, '/landing');
-    });
+    _decideStartRoute();
+  }
+
+  Future<void> _decideStartRoute() async {
+    // Keep the splash on screen briefly regardless of outcome, so it
+    // doesn't just flash for returning users on a fast connection.
+    final minSplash = Future.delayed(const Duration(seconds: 2));
+
+    final token = await StorageService.getToken();
+    String nextRoute = '/landing';
+
+    if (token != null && token.isNotEmpty) {
+      try {
+        final profile = await ApiService.getProfile(token);
+        if (mounted) {
+          Provider.of<UserModel>(context, listen: false)
+              .updateFromApi(profile);
+        }
+        final role = profile['role'];
+        final isStaff = role == 'ADMIN' || role == 'SUPER_ADMIN';
+        nextRoute = isStaff ? '/admin_dashboard' : '/dashboard';
+      } catch (_) {
+        // Token is invalid/expired - fall back to landing and clear it
+        // so the user isn't stuck in a broken "half logged in" state.
+        await StorageService.deleteToken();
+        nextRoute = '/landing';
+      }
+    }
+
+    await minSplash;
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, nextRoute);
+    }
   }
 
   @override

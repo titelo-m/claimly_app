@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/user_model.dart';
+import '../services/api_service.dart';
+import '../services/storage_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -16,6 +18,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _paymentReminders = true;
   bool _generalAnnouncements = true;
   bool _isEditing = false;
+  bool _isUploadingPicture = false;
   
   // Profile Controllers
   final TextEditingController _fullNameController = TextEditingController();
@@ -97,6 +100,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _pickAndUploadProfilePicture() async {
+    final picker = ImagePicker();
+    final XFile? picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1024,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+
+    setState(() => _isUploadingPicture = true);
+
+    try {
+      final token = await StorageService.getToken();
+      if (token == null) {
+        throw Exception('You need to be signed in to do that.');
+      }
+
+      final newUrl = await ApiService.uploadProfilePicture(
+        token,
+        await picked.readAsBytes(),
+        picked.name,
+      );
+
+      if (!mounted) return;
+      Provider.of<UserModel>(context, listen: false).setProfilePicture(newUrl);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Profile picture updated',
+            style: GoogleFonts.inter(color: Colors.white),
+          ),
+          backgroundColor: Colors.black.withOpacity(0.8),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingPicture = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final userModel = Provider.of<UserModel>(context);
@@ -154,7 +209,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _showLogoutConfirmation(context);
                       },
                       icon: Icon(
-                        LucideIcons.log_out,
+                        Icons.logout,
                         color: Colors.white.withOpacity(0.6),
                         size: 18,
                       ),
@@ -185,6 +240,79 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   const SizedBox(height: 20),
 
+                  // Profile picture
+                  Center(
+                    child: Column(
+                      children: [
+                        Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 44,
+                              backgroundColor: const Color(0xFF49D86A).withOpacity(0.15),
+                              backgroundImage: userModel.profilePictureUrl.isNotEmpty
+                                  ? NetworkImage(
+                                      '${ApiService.mediaBaseUrl}${userModel.profilePictureUrl}')
+                                  : null,
+                              child: userModel.profilePictureUrl.isEmpty
+                                  ? const Icon(
+                                      Icons.person,
+                                      color: Color(0xFF49D86A),
+                                      size: 40,
+                                    )
+                                  : null,
+                            ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: GestureDetector(
+                                onTap: _isUploadingPicture
+                                    ? null
+                                    : _pickAndUploadProfilePicture,
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF49D86A),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: const Color(0xFF081814),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: _isUploadingPicture
+                                      ? const SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(
+                                              Colors.black,
+                                            ),
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.camera_alt,
+                                          size: 14,
+                                          color: Colors.black,
+                                        ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Tap to change photo',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: Colors.white.withOpacity(0.4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
                   // CARD 1: Personal Information
                   Container(
                     padding: const EdgeInsets.all(20),
@@ -212,7 +340,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildField(
                           label: 'Full Name',
                           controller: _fullNameController,
-                          icon: LucideIcons.user,
+                          icon: Icons.person,
                           enabled: _isEditing,
                         ),
                         const SizedBox(height: 12),
@@ -220,7 +348,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildField(
                           label: 'Mobile Number',
                           controller: _phoneController,
-                          icon: LucideIcons.phone,
+                          icon: Icons.phone,
                           enabled: _isEditing,
                           keyboardType: TextInputType.phone,
                         ),
@@ -229,7 +357,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildField(
                           label: 'Alternative Number (Optional)',
                           controller: _altPhoneController,
-                          icon: LucideIcons.phone,
+                          icon: Icons.phone,
                           enabled: _isEditing,
                           keyboardType: TextInputType.phone,
                         ),
@@ -238,7 +366,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildField(
                           label: 'Email Address',
                           controller: _emailController,
-                          icon: LucideIcons.mail,
+                          icon: Icons.email,
                           enabled: _isEditing,
                           keyboardType: TextInputType.emailAddress,
                         ),
@@ -247,7 +375,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildField(
                           label: 'Street Address',
                           controller: _streetController,
-                          icon: LucideIcons.building_2,  // Fixed
+                          icon: Icons.home_work_outlined,  // Fixed
                           enabled: _isEditing,
                         ),
                         const SizedBox(height: 12),
@@ -255,7 +383,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildField(
                           label: 'City',
                           controller: _cityController,
-                          icon: LucideIcons.map_pin,
+                          icon: Icons.location_on,
                           enabled: _isEditing,
                         ),
                         const SizedBox(height: 12),
@@ -264,7 +392,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           label: 'Province',
                           value: _selectedProvince,
                           items: _provinces,
-                          icon: LucideIcons.compass,
+                          icon: Icons.explore,
                           enabled: _isEditing,
                           onChanged: (value) {
                             setState(() {
@@ -277,7 +405,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildField(
                           label: 'Postal Code',
                           controller: _postalCodeController,
-                          icon: LucideIcons.mailbox,
+                          icon: Icons.markunread_mailbox,
                           enabled: _isEditing,
                           keyboardType: TextInputType.number,
                         ),
@@ -375,7 +503,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildField(
                           label: 'Bank Name',
                           controller: _bankNameController,
-                          icon: LucideIcons.landmark,
+                          icon: Icons.account_balance,
                           enabled: _isEditing,
                         ),
                         const SizedBox(height: 12),
@@ -383,7 +511,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildField(
                           label: 'Account Holder',
                           controller: _accountHolderController,
-                          icon: LucideIcons.user,
+                          icon: Icons.person,
                           enabled: _isEditing,
                         ),
                         const SizedBox(height: 12),
@@ -391,7 +519,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildField(
                           label: 'Account Number',
                           controller: _accountNumberController,
-                          icon: LucideIcons.hash,
+                          icon: Icons.tag,
                           enabled: _isEditing,
                           keyboardType: TextInputType.number,
                         ),
@@ -400,7 +528,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildField(
                           label: 'Branch Code',
                           controller: _branchCodeController,
-                          icon: LucideIcons.code,
+                          icon: Icons.pin_outlined,
                           enabled: _isEditing,
                           keyboardType: TextInputType.number,
                         ),
@@ -410,7 +538,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           label: 'Account Type',
                           value: _selectedAccountType,
                           items: _accountTypes,
-                          icon: LucideIcons.list,
+                          icon: Icons.list,
                           enabled: _isEditing,
                           onChanged: (value) {
                             setState(() {
@@ -419,6 +547,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           },
                         ),
                       ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // My Documents
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D2A22).withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.grey[600]!.withOpacity(0.35),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: InkWell(
+                      onTap: () => Navigator.pushNamed(context, '/documents'),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF49D86A).withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.folder_outlined,
+                              color: Color(0xFF49D86A),
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'My Documents',
+                                  style: GoogleFonts.spaceGrotesk(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Upload your ID, proof of address, income & bank confirmation',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: Colors.white.withOpacity(0.5),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.arrow_forward_ios,
+                            color: Colors.white.withOpacity(0.3),
+                            size: 16,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
 

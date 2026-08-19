@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/user_model.dart';
+import '../services/api_service.dart';
+import '../services/storage_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -12,30 +14,58 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   String _currentTime = '';
+  bool _isLoading = true;
+  List<dynamic> _recentClaims = [];
 
   @override
   void initState() {
     super.initState();
     _updateTime();
+    _fetchUserData();
   }
 
   void _updateTime() {
     final now = DateTime.now();
     setState(() {
-      _currentTime = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+      _currentTime =
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     });
+  }
+
+  Future<void> _fetchUserData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final token = await StorageService.getToken();
+      if (token != null) {
+        final profile = await ApiService.getProfile(token);
+        if (!mounted) return;
+        final userModel = Provider.of<UserModel>(context, listen: false);
+        // Update user model with real data
+        userModel.updateFromApi(profile);
+
+        final claims = await ApiService.getClaims(token);
+        if (!mounted) return;
+        setState(() => _recentClaims = claims);
+      }
+    } catch (e) {
+      print('Error fetching user data: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final userModel = Provider.of<UserModel>(context);
     final hasCover = userModel.hasCover;
-    final firstName = userModel.fullName.isNotEmpty 
-        ? userModel.fullName.split(' ').first 
+    final firstName = userModel.fullName.isNotEmpty
+        ? userModel.fullName.split(' ').first
         : 'there';
-    
-    // Get recent claims (up to 5)
-    final recentClaims = userModel.claims.take(5).toList();
+
+    final recentClaims = _recentClaims.take(5).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFF081814),
@@ -56,28 +86,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
                   children: [
-                    Text(
-                      'Hi $firstName',
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    GestureDetector(
+                      onTap: () => Navigator.pushNamed(context, '/profile'),
+                      child: CircleAvatar(
+                        radius: 22,
+                        backgroundColor: const Color(0xFF49D86A).withOpacity(0.15),
+                        backgroundImage: userModel.profilePictureUrl.isNotEmpty
+                            ? NetworkImage(
+                                '${ApiService.mediaBaseUrl}${userModel.profilePictureUrl}')
+                            : null,
+                        child: userModel.profilePictureUrl.isEmpty
+                            ? const Icon(
+                                Icons.person,
+                                color: Color(0xFF49D86A),
+                                size: 22,
+                              )
+                            : null,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Your Claimly cover',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: Colors.white.withOpacity(0.6),
-                      ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Hi $firstName',
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Your Claimly cover',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: Colors.white.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                // Logout Button
                 TextButton.icon(
                   onPressed: () {
                     _showLogoutConfirmation(context);
@@ -96,7 +148,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                 ),
               ],
@@ -106,10 +159,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           // Scrollable Content
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () async {
-                _updateTime();
-                await Future.delayed(const Duration(seconds: 1));
-              },
+              onRefresh: _fetchUserData,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -117,8 +167,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 12),
-                    
-                    // Updated time with Refresh button on the far right
+
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -129,7 +178,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             color: Colors.white.withOpacity(0.4),
                           ),
                         ),
-                        // Refresh button
                         Container(
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.08),
@@ -142,26 +190,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           child: TextButton(
                             onPressed: () {
                               _updateTime();
+                              _fetchUserData();
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Updated $_currentTime',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  backgroundColor: Colors.black.withOpacity(0.8),
-                                  duration: const Duration(seconds: 2),
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
+                                const SnackBar(
+                                  content: Text('Refreshed!'),
+                                  backgroundColor: Colors.green,
+                                  duration: Duration(seconds: 1),
                                 ),
                               );
                             },
                             style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
                               minimumSize: Size.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
@@ -189,101 +229,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Cover Card
-                    if (!hasCover)
+                    if (_isLoading)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(40),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else if (!hasCover)
                       _buildEmptyCoverCard(context)
+                    else if (userModel.isCoverPending)
+                      _buildPendingCoverCard(context, userModel)
                     else
                       _buildActiveCoverCard(context, userModel),
 
                     const SizedBox(height: 24),
 
-                    // Recent Claims Section
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Recent claims',
-                              style: GoogleFonts.spaceGrotesk(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pushNamed(context, '/claims');
-                              },
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                              ),
-                              child: Text(
-                                'View all',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: const Color(0xFF49D86A),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        if (recentClaims.isEmpty)
-                          _buildEmptyClaims()
-                        else
-                          ...recentClaims.map((claim) => _buildClaimItem(claim)),
-                      ],
-                    ),
-
+                    // Rest of your dashboard code...
+                    _buildRecentClaimsSection(context, recentClaims),
                     const SizedBox(height: 32),
-
-                    // No data? Dial *120*252645#
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.08),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.phone_android,
-                            color: Colors.white.withOpacity(0.5),
-                            size: 20,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'No data? Dial *120*252645#',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                Text(
-                                  'Check your cover and start a claim from any phone, no internet needed.',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: Colors.white.withOpacity(0.5),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
+                    _buildUSSDInfo(),
                     const SizedBox(height: 16),
                   ],
                 ),
@@ -292,26 +257,229 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => Navigator.pushNamed(context, '/chat'),
+        backgroundColor: const Color(0xFF49D86A),
+        child: const Icon(Icons.chat_bubble, color: Colors.black),
+      ),
       bottomNavigationBar: _buildBottomNavBar(0, context),
     );
   }
 
-  Widget _buildEmptyCoverCard(BuildContext context) {
+  // Add the rest of your build methods here (they remain the same)
+  Widget _buildRecentClaimsSection(
+      BuildContext context, List<dynamic> recentClaims) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent claims',
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pushNamed(context, '/claims');
+              },
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+              ),
+              child: Text(
+                'View all',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: const Color(0xFF49D86A),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (recentClaims.isEmpty)
+          _buildEmptyClaims()
+        else
+          ...recentClaims.map((claim) => _buildClaimItem(claim)),
+      ],
+    );
+  }
+
+  Widget _buildEmptyClaims() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Text(
+            'No claims yet.',
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "If something happens, submit a claim and we'll target payment within 48 hours.",
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Colors.white.withOpacity(0.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClaimItem(dynamic claim) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.pushNamed(
+          context,
+          '/claim_detail',
+          arguments: claim['claimReference'],
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.08),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  claim['claimReference'] ?? 'Unknown',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  claim['claimType'] ?? 'Claim',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: Colors.white.withOpacity(0.6),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  claim['submittedAt'] != null
+                      ? _formatDate(DateTime.parse(claim['submittedAt']))
+                      : 'Recent',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: Colors.white.withOpacity(0.4),
+                  ),
+                ),
+              ],
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: claim['status'] == 'SUBMITTED'
+                    ? Colors.orange.withOpacity(0.2)
+                    : claim['status'] == 'UNDER_REVIEW'
+                        ? Colors.blue.withOpacity(0.2)
+                        : claim['status'] == 'APPROVED'
+                            ? Colors.green.withOpacity(0.2)
+                            : claim['status'] == 'PAID'
+                                ? const Color(0xFF49D86A).withOpacity(0.2)
+                                : Colors.red.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: claim['status'] == 'SUBMITTED'
+                      ? Colors.orange.withOpacity(0.3)
+                      : claim['status'] == 'UNDER_REVIEW'
+                          ? Colors.blue.withOpacity(0.3)
+                          : claim['status'] == 'APPROVED'
+                              ? Colors.green.withOpacity(0.3)
+                              : claim['status'] == 'PAID'
+                                  ? const Color(0xFF49D86A).withOpacity(0.3)
+                                  : Colors.red.withOpacity(0.3),
+                  width: 0.5,
+                ),
+              ),
+              child: Text(
+                (claim['status'] ?? 'SUBMITTED').toString().replaceAll('_', ' '),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: claim['status'] == 'SUBMITTED'
+                      ? Colors.orange
+                      : claim['status'] == 'UNDER_REVIEW'
+                          ? Colors.blue
+                          : claim['status'] == 'APPROVED'
+                              ? Colors.green
+                              : claim['status'] == 'PAID'
+                                  ? const Color(0xFF49D86A)
+                                  : Colors.red,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  Widget _buildPendingCoverCard(BuildContext context, UserModel userModel) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF0D2A22).withOpacity(0.6),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.grey[600]!.withOpacity(0.35),
+          color: Colors.orange.withOpacity(0.35),
           width: 0.8,
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          const Icon(Icons.hourglass_top, color: Colors.orange, size: 28),
+          const SizedBox(height: 12),
           Text(
-            "You're not covered yet",
+            'Cover pending approval',
+            textAlign: TextAlign.center,
             style: GoogleFonts.spaceGrotesk(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -320,7 +488,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            "Pick a plan and you'll be protected from your first debit order.",
+            '${userModel.selectedProduct} · ${userModel.selectedTier} tier',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: Colors.white.withOpacity(0.7),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "An admin is reviewing your cover selection. You'll get an email as soon as it's approved.",
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Colors.white.withOpacity(0.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyCoverCard(BuildContext context) {
+    final userModel = Provider.of<UserModel>(context, listen: false);
+    final isPending = userModel.isPendingApproval;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D2A22).withOpacity(0.6),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isPending
+              ? Colors.orange.withOpacity(0.35)
+              : Colors.grey[600]!.withOpacity(0.35),
+          width: 0.8,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (isPending) ...[
+            Icon(Icons.hourglass_top, color: Colors.orange, size: 28),
+            const SizedBox(height: 12),
+          ],
+          Text(
+            isPending ? 'Your account is pending approval' : "You're not covered yet",
+            textAlign: TextAlign.center,
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isPending
+                ? "An admin is reviewing your details. You'll be able to choose your cover once your account is approved."
+                : "Pick a plan and you'll be protected from your first debit order.",
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
               fontSize: 14,
@@ -331,19 +557,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {
-                Navigator.pushNamed(context, '/cover_selection');
-              },
+              onPressed: isPending
+                  ? null
+                  : () {
+                      Navigator.pushNamed(context, '/cover_selection');
+                    },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF49D86A),
                 foregroundColor: Colors.black,
+                disabledBackgroundColor: Colors.white.withOpacity(0.08),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
               child: Text(
-                'Choose my cover',
+                isPending ? 'Awaiting approval' : 'Choose my cover',
                 style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -417,17 +646,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String getBenefitDetail() {
       if (userModel.selectedProduct == 'Income Protection') {
         switch (userModel.selectedTier) {
-          case 'BRONZE': return 'Up to 3 monthly payouts';
-          case 'SILVER': return 'Up to 6 monthly payouts';
-          case 'GOLD': return 'Up to 9 monthly payouts';
-          default: return 'Up to 3 monthly payouts';
+          case 'BRONZE':
+            return 'Up to 3 monthly payouts';
+          case 'SILVER':
+            return 'Up to 6 monthly payouts';
+          case 'GOLD':
+            return 'Up to 9 monthly payouts';
+          default:
+            return 'Up to 3 monthly payouts';
         }
       } else {
         switch (userModel.selectedTier) {
-          case 'BRONZE': return '1 excess payout per 12 months';
-          case 'SILVER': return '2 excess payouts per 12 months';
-          case 'GOLD': return 'Unlimited excess payouts per 12 months';
-          default: return '1 excess payout per 12 months';
+          case 'BRONZE':
+            return '1 excess payout per 12 months';
+          case 'SILVER':
+            return '2 excess payouts per 12 months';
+          case 'GOLD':
+            return 'Unlimited excess payouts per 12 months';
+          default:
+            return '1 excess payout per 12 months';
         }
       }
     }
@@ -436,17 +673,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String getBenefitAmount() {
       if (userModel.selectedProduct == 'Income Protection') {
         switch (userModel.selectedTier) {
-          case 'BRONZE': return 'R 2 500';
-          case 'SILVER': return 'R 5 000';
-          case 'GOLD': return 'R 9 000';
-          default: return 'R 2 500';
+          case 'BRONZE':
+            return 'R 2 500';
+          case 'SILVER':
+            return 'R 5 000';
+          case 'GOLD':
+            return 'R 9 000';
+          default:
+            return 'R 2 500';
         }
       } else {
         switch (userModel.selectedTier) {
-          case 'BRONZE': return 'R 3 500';
-          case 'SILVER': return 'R 7 500';
-          case 'GOLD': return 'R 15 000';
-          default: return 'R 3 500';
+          case 'BRONZE':
+            return 'R 3 500';
+          case 'SILVER':
+            return 'R 7 500';
+          case 'GOLD':
+            return 'R 15 000';
+          default:
+            return 'R 3 500';
         }
       }
     }
@@ -455,17 +700,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String getMonthlyPremium() {
       if (userModel.selectedProduct == 'Income Protection') {
         switch (userModel.selectedTier) {
-          case 'BRONZE': return 'R99';
-          case 'SILVER': return 'R189';
-          case 'GOLD': return 'R329';
-          default: return 'R99';
+          case 'BRONZE':
+            return 'R99';
+          case 'SILVER':
+            return 'R189';
+          case 'GOLD':
+            return 'R329';
+          default:
+            return 'R99';
         }
       } else {
         switch (userModel.selectedTier) {
-          case 'BRONZE': return 'R79';
-          case 'SILVER': return 'R149';
-          case 'GOLD': return 'R259';
-          default: return 'R79';
+          case 'BRONZE':
+            return 'R79';
+          case 'SILVER':
+            return 'R149';
+          case 'GOLD':
+            return 'R259';
+          default:
+            return 'R79';
         }
       }
     }
@@ -487,7 +740,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                userModel.selectedProduct.isNotEmpty ? userModel.selectedProduct : 'Income Protection',
+                userModel.selectedProduct.isNotEmpty
+                    ? userModel.selectedProduct
+                    : 'Income Protection',
                 style: GoogleFonts.spaceGrotesk(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -495,7 +750,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: const Color(0xFF49D86A).withOpacity(0.15),
                   borderRadius: BorderRadius.circular(20),
@@ -557,7 +813,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Expanded(
                 child: _buildInfoCard(
                   label: 'Payment method',
-                  value: userModel.paymentMethod.isNotEmpty ? userModel.paymentMethod : 'Debit order',
+                  value: userModel.paymentMethod.isNotEmpty
+                      ? userModel.paymentMethod
+                      : 'Debit order',
                 ),
               ),
             ],
@@ -640,10 +898,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildInfoCard({
-    required String label,
-    required String value,
-  }) {
+  Widget _buildInfoCard({required String label, required String value}) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -674,142 +929,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildEmptyClaims() {
+  Widget _buildUSSDInfo() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Text(
-            'No claims yet.',
-            style: GoogleFonts.inter(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            "If something happens, submit a claim and we'll target payment within 48 hours.",
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              color: Colors.white.withOpacity(0.5),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
-  }
-
-  Widget _buildClaimItem(Claim claim) {
-    return GestureDetector(
-      onTap: () {
-        // Navigate to claim detail
-        Navigator.pushNamed(
-          context,
-          '/claim_detail',
-          arguments: claim,
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.08),
-          ),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.08),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.phone_android,
+            color: Colors.white.withOpacity(0.5),
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  claim.id,
+                  'No data? Dial *120*252645#',
                   style: GoogleFonts.inter(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
                     fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 2),
                 Text(
-                  claim.type,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: Colors.white.withOpacity(0.6),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _formatDate(claim.date),
+                  'Check your cover and start a claim from any phone, no internet needed.',
                   style: GoogleFonts.inter(
                     fontSize: 12,
-                    color: Colors.white.withOpacity(0.4),
+                    color: Colors.white.withOpacity(0.5),
                   ),
                 ),
               ],
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: claim.status == 'SUBMITTED'
-                    ? Colors.orange.withOpacity(0.2)
-                    : claim.status == 'UNDER REVIEW'
-                        ? Colors.blue.withOpacity(0.2)
-                        : claim.status == 'APPROVED'
-                            ? Colors.green.withOpacity(0.2)
-                            : claim.status == 'PAID'
-                                ? const Color(0xFF49D86A).withOpacity(0.2)
-                                : Colors.red.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: claim.status == 'SUBMITTED'
-                      ? Colors.orange.withOpacity(0.3)
-                      : claim.status == 'UNDER REVIEW'
-                          ? Colors.blue.withOpacity(0.3)
-                          : claim.status == 'APPROVED'
-                              ? Colors.green.withOpacity(0.3)
-                              : claim.status == 'PAID'
-                                  ? const Color(0xFF49D86A).withOpacity(0.3)
-                                  : Colors.red.withOpacity(0.3),
-                  width: 0.5,
-                ),
-              ),
-              child: Text(
-                claim.status,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: claim.status == 'SUBMITTED'
-                      ? Colors.orange
-                      : claim.status == 'UNDER REVIEW'
-                          ? Colors.blue
-                          : claim.status == 'APPROVED'
-                              ? Colors.green
-                              : claim.status == 'PAID'
-                                  ? const Color(0xFF49D86A)
-                                  : Colors.red,
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -869,11 +1029,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              await StorageService.deleteToken();
               final userModel = Provider.of<UserModel>(context, listen: false);
               userModel.logout();
-              Navigator.pop(context);
-              Navigator.pushReplacementNamed(context, '/landing');
+              if (mounted) {
+                Navigator.pop(context);
+                Navigator.pushReplacementNamed(context, '/landing');
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,

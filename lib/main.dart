@@ -1,61 +1,74 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'theme/app_theme.dart';
+import 'models/user_model.dart';
 import 'screens/splash_screen.dart';
 import 'screens/landing_screen.dart';
 import 'screens/registration_screen.dart';
 import 'screens/login_screen.dart';
-import 'screens/dashboard_screen.dart';
+import 'screens/verification_method_screen.dart';
+import 'screens/otp_verification_screen.dart';
 import 'screens/cover_selection_screen.dart';
 import 'screens/confirm_cover_screen.dart';
-import 'screens/submit_claim_screen.dart';
-import 'screens/claim_detail_screen.dart';
+import 'screens/dashboard_screen.dart';
 import 'screens/claims_screen.dart';
-import 'screens/payments_screen.dart';
+import 'screens/claim_detail_screen.dart';
+import 'screens/submit_claim_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/payments_screen.dart';
 import 'screens/plans_screen.dart';
-import 'models/user_model.dart';
+import 'screens/forgot_password_screen.dart';
+import 'screens/admin_dashboard_screen.dart';
+import 'screens/documents_screen.dart';
+import 'screens/chat_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() {
-  runApp(const ClaimlyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => UserModel(),
+      child: const MyApp(),
+    ),
+  );
 }
 
-class ClaimlyApp extends StatelessWidget {
-  const ClaimlyApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => UserModel()),
-      ],
-      child: Consumer<UserModel>(
-        builder: (context, userModel, child) {
-          return MaterialApp(
-            title: 'Claimly',
-            theme: AppTheme.lightTheme,
-            darkTheme: AppTheme.darkTheme,
-            themeMode: userModel.themeMode,
-            debugShowCheckedModeBanner: false,
-            home: const SplashScreen(),
-            routes: {
-              '/landing': (context) => const LandingScreen(),
-              '/registration': (context) => const RegistrationScreen(),
-              '/login': (context) => const LoginScreen(),
-              '/dashboard': (context) => const DashboardScreen(),
-              '/cover_selection': (context) => const CoverSelectionScreen(),
-              '/confirm_cover': (context) => const ConfirmCoverScreen(),
-              '/submit_claim': (context) => const SubmitClaimScreen(),
-              '/claim_detail': (context) => const ClaimDetailScreen(),
-              '/claims': (context) => const ClaimsScreen(),
-              '/payments': (context) => const PaymentsScreen(),
-              '/profile': (context) => const ProfileScreen(),
-              '/plans': (context) => const PlansScreen(),
-            },
-          );
-        },
-      ),
+    return MaterialApp(
+      title: 'Claimly',
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.dark,
+      debugShowCheckedModeBanner: false,
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const SplashScreen(),
+        '/landing': (context) => const LandingScreen(),
+        '/registration': (context) => const RegistrationScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/verification_method': (context) => const VerificationMethodScreen(),
+        '/otp_verification': (context) => const OTPVerificationScreen(),
+        '/cover_selection': (context) => const CoverSelectionScreen(),
+        '/confirm_cover': (context) => const ConfirmCoverScreen(),
+        '/dashboard': (context) => const DashboardScreen(),
+        '/claims': (context) => const ClaimsScreen(),
+        '/claim_detail': (context) => const ClaimDetailScreen(),
+        '/submit_claim': (context) => const SubmitClaimScreen(),
+        '/profile': (context) => const ProfileScreen(),
+        '/payments': (context) => const PaymentsScreen(),
+        '/plans': (context) => const PlansScreen(),
+        '/forgot_password': (context) => const ForgotPasswordScreen(),
+        '/admin_dashboard': (context) => const AdminDashboardScreen(),
+        '/documents': (context) => const DocumentsScreen(),
+        '/chat': (context) => const ChatScreen(),
+      },
+      onUnknownRoute: (settings) {
+        return MaterialPageRoute(
+          builder: (context) => const LandingScreen(),
+        );
+      },
     );
   }
 }

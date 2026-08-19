@@ -30,6 +30,22 @@ class LandingScreen extends StatelessWidget {
           ),
         ),
         actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pushNamed(context, '/login');
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            ),
+            child: Text(
+              'Log in',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: ElevatedButton(
@@ -172,7 +188,7 @@ class LandingScreen extends StatelessWidget {
                           Expanded(
                             child: OutlinedButton(
                               onPressed: () {
-                                Navigator.pushNamed(context, '/plans');
+                                Navigator.pushNamed(context, '/login');
                               },
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.white,
@@ -183,7 +199,7 @@ class LandingScreen extends StatelessWidget {
                                 ),
                               ),
                               child: Text(
-                                'See the plans',
+                                'Log in',
                                 style: GoogleFonts.inter(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -332,6 +348,7 @@ class LandingScreen extends StatelessWidget {
                     silverPrice: 'R189',
                     goldPrice: 'R329',
                     context: context,
+                    productType: 'income',
                   ),
                   const SizedBox(height: 20),
                   _buildProductCard(
@@ -342,6 +359,7 @@ class LandingScreen extends StatelessWidget {
                     silverPrice: 'R149',
                     goldPrice: 'R259',
                     context: context,
+                    productType: 'excess',
                   ),
                   const SizedBox(height: 24),
                   Container(
@@ -495,6 +513,7 @@ class LandingScreen extends StatelessWidget {
     required String silverPrice,
     required String goldPrice,
     required BuildContext context,
+    required String productType,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
@@ -557,7 +576,7 @@ class LandingScreen extends StatelessWidget {
           
           const SizedBox(height: 20),
           
-          // Compare tiers button - centered, dim white with padded container
+          // Compare tiers button - navigates to plans screen with selected product
           Center(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -571,7 +590,12 @@ class LandingScreen extends StatelessWidget {
               ),
               child: TextButton(
                 onPressed: () {
-                  Navigator.pushNamed(context, '/cover_selection');
+                  // Navigate to plans screen with product type
+                  Navigator.pushNamed(
+                    context, 
+                    '/plans',
+                    arguments: productType,
+                  );
                 },
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),

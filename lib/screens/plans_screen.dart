@@ -1,8 +1,70 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class PlansScreen extends StatelessWidget {
+class PlansScreen extends StatefulWidget {
   const PlansScreen({super.key});
+
+  @override
+  State<PlansScreen> createState() => _PlansScreenState();
+}
+
+class _PlansScreenState extends State<PlansScreen> {
+  final ScrollController _scrollController = ScrollController();
+  String? _selectedProduct;
+  final GlobalKey _incomeKey = GlobalKey();
+  final GlobalKey _excessKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    // Get the product type from arguments
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final args = ModalRoute.of(context)?.settings.arguments as String?;
+      if (args != null) {
+        _selectedProduct = args;
+        _scrollToProduct(args);
+      }
+    });
+  }
+
+  void _scrollToProduct(String productType) {
+    // Wait for the widget tree to be built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (productType == 'excess') {
+        // Find the Excess Fee Cover section and scroll to it
+        final RenderObject? renderObject = _excessKey.currentContext?.findRenderObject();
+        if (renderObject is RenderBox) {
+          final position = renderObject.localToGlobal(Offset.zero);
+          // Scroll to the position
+          _scrollController.animateTo(
+            position.dy - 100, // 100px offset for better visibility
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeInOut,
+          );
+        } else {
+          // Fallback if the key doesn't work
+          _scrollController.animateTo(
+            600.0,
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeInOut,
+          );
+        }
+      } else {
+        // Income Protection is at the top, scroll to top
+        _scrollController.animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -11,6 +73,7 @@ class PlansScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF081814),
       body: SingleChildScrollView(
+        controller: _scrollController,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -22,31 +85,24 @@ class PlansScreen extends StatelessWidget {
               cursor: SystemMouseCursors.click,
               child: GestureDetector(
                 onTap: () => Navigator.pop(context),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    color: Colors.transparent,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.arrow_back_ios_new,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.arrow_back_ios_new,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Back',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
                         color: Colors.white,
-                        size: 14,
+                        fontWeight: FontWeight.w500,
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Back',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -74,139 +130,145 @@ class PlansScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Income Protection Section
-            _buildProductSection(
-              title: 'Income Protection',
-              subtitle: "Money in your pocket when you can't work",
-              tiers: [
-                TierData(
-                  name: 'BRONZE',
-                  displayName: 'Bronze',
-                  price: 'R 99',
-                  benefit: 'R 2 500',
-                  benefitDetail: 'Up to 3 monthly payouts',
-                  color: const Color(0xFFCD7F32),
-                  features: [
-                    'Doctor-certified illness',
-                    'Injury or workplace accident',
-                    'Retrenchment / involuntary job loss',
-                    'Payout within 48 hours of approval',
-                  ],
-                  exclusions: [
-                    'Resignation or dismissal for misconduct',
-                    'Claims inside the 9-month waiting period',
-                    'Pre-existing conditions declared after signup',
-                  ],
-                ),
-                TierData(
-                  name: 'SILVER',
-                  displayName: 'Silver',
-                  price: 'R 189',
-                  benefit: 'R 5 000',
-                  benefitDetail: 'Up to 6 monthly payouts',
-                  color: Colors.grey[400]!,
-                  features: [
-                    'Everything in Bronze',
-                    'Higher monthly benefit',
-                    'Priority claims review',
-                    'Free policy document downloads',
-                  ],
-                  exclusions: [
-                    'Resignation or dismissal for misconduct',
-                    'Claims inside the 9-month waiting period',
-                    'Pre-existing conditions declared after signup',
-                  ],
-                ),
-                TierData(
-                  name: 'GOLD',
-                  displayName: 'Gold',
-                  price: 'R 329',
-                  benefit: 'R 9 000',
-                  benefitDetail: 'Up to 9 monthly payouts',
-                  color: const Color(0xFFFFD700),
-                  features: [
-                    'Everything in Silver',
-                    'Highest monthly benefit',
-                    'Dedicated claims agent on WhatsApp',
-                    'Family notification on claim outcome',
-                  ],
-                  exclusions: [
-                    'Resignation or dismissal for misconduct',
-                    'Claims inside the 9-month waiting period',
-                    'Pre-existing conditions declared after signup',
-                    'Self-inflicted injury',
-                  ],
-                ),
-              ],
-              context: context,
+            // Income Protection Section with GlobalKey
+            Container(
+              key: _incomeKey,
+              child: _buildProductSection(
+                title: 'Income Protection',
+                subtitle: "Money in your pocket when you can't work",
+                tiers: [
+                  TierData(
+                    name: 'BRONZE',
+                    displayName: 'Bronze',
+                    price: 'R 99',
+                    benefit: 'R 2 500',
+                    benefitDetail: 'Up to 3 monthly payouts',
+                    color: const Color(0xFFCD7F32),
+                    features: [
+                      'Doctor-certified illness',
+                      'Injury or workplace accident',
+                      'Retrenchment / involuntary job loss',
+                      'Payout within 48 hours of approval',
+                    ],
+                    exclusions: [
+                      'Resignation or dismissal for misconduct',
+                      'Claims inside the 9-month waiting period',
+                      'Pre-existing conditions declared after signup',
+                    ],
+                  ),
+                  TierData(
+                    name: 'SILVER',
+                    displayName: 'Silver',
+                    price: 'R 189',
+                    benefit: 'R 5 000',
+                    benefitDetail: 'Up to 6 monthly payouts',
+                    color: Colors.grey[400]!,
+                    features: [
+                      'Everything in Bronze',
+                      'Higher monthly benefit',
+                      'Priority claims review',
+                      'Free policy document downloads',
+                    ],
+                    exclusions: [
+                      'Resignation or dismissal for misconduct',
+                      'Claims inside the 9-month waiting period',
+                      'Pre-existing conditions declared after signup',
+                    ],
+                  ),
+                  TierData(
+                    name: 'GOLD',
+                    displayName: 'Gold',
+                    price: 'R 329',
+                    benefit: 'R 9 000',
+                    benefitDetail: 'Up to 9 monthly payouts',
+                    color: const Color(0xFFFFD700),
+                    features: [
+                      'Everything in Silver',
+                      'Highest monthly benefit',
+                      'Dedicated claims agent on WhatsApp',
+                      'Family notification on claim outcome',
+                    ],
+                    exclusions: [
+                      'Resignation or dismissal for misconduct',
+                      'Claims inside the 9-month waiting period',
+                      'Pre-existing conditions declared after signup',
+                      'Self-inflicted injury',
+                    ],
+                  ),
+                ],
+                context: context,
+              ),
             ),
 
             const SizedBox(height: 32),
 
-            // Excess Fee Cover Section
-            _buildProductSection(
-              title: 'Excess Fee Cover',
-              subtitle: 'We pay the excess when you claim on your car',
-              tiers: [
-                TierData(
-                  name: 'BRONZE',
-                  displayName: 'Bronze',
-                  price: 'R 79',
-                  benefit: 'R 3 500',
-                  benefitDetail: '1 excess payout per 12 months',
-                  color: const Color(0xFFCD7F32),
-                  features: [
-                    'Accident excess',
-                    'Theft & hijacking excess',
-                    'Hail and weather damage excess',
-                    'Direct payment to your panel beater or you',
-                  ],
-                  exclusions: [
-                    'Driving without a valid licence',
-                    'Driving under the influence',
-                    'Claims inside the 9-month waiting period',
-                  ],
-                ),
-                TierData(
-                  name: 'SILVER',
-                  displayName: 'Silver',
-                  price: 'R 149',
-                  benefit: 'R 7 500',
-                  benefitDetail: '2 excess payouts per 12 months',
-                  color: Colors.grey[400]!,
-                  features: [
-                    'Everything in Bronze',
-                    'Higher excess limit',
-                    'Windscreen excess included',
-                    'Priority claims review',
-                  ],
-                  exclusions: [
-                    'Driving without a valid licence',
-                    'Driving under the influence',
-                    'Unroadworthy vehicle claims',
-                  ],
-                ),
-                TierData(
-                  name: 'GOLD',
-                  displayName: 'Gold',
-                  price: 'R 259',
-                  benefit: 'R 15 000',
-                  benefitDetail: 'Unlimited excess payouts per 12 months',
-                  color: const Color(0xFFFFD700),
-                  features: [
-                    'Everything in Silver',
-                    'Highest excess limit',
-                    'Car hire contribution while repairs happen',
-                    'Dedicated claims agent on WhatsApp',
-                  ],
-                  exclusions: [
-                    'Driving without a valid licence',
-                    'Driving under the influence',
-                    'Unroadworthy vehicle claims',
-                  ],
-                ),
-              ],
-              context: context,
+            // Excess Fee Cover Section with GlobalKey
+            Container(
+              key: _excessKey,
+              child: _buildProductSection(
+                title: 'Excess Fee Cover',
+                subtitle: 'We pay the excess when you claim on your car',
+                tiers: [
+                  TierData(
+                    name: 'BRONZE',
+                    displayName: 'Bronze',
+                    price: 'R 79',
+                    benefit: 'R 3 500',
+                    benefitDetail: '1 excess payout per 12 months',
+                    color: const Color(0xFFCD7F32),
+                    features: [
+                      'Accident excess',
+                      'Theft & hijacking excess',
+                      'Hail and weather damage excess',
+                      'Direct payment to your panel beater or you',
+                    ],
+                    exclusions: [
+                      'Driving without a valid licence',
+                      'Driving under the influence',
+                      'Claims inside the 9-month waiting period',
+                    ],
+                  ),
+                  TierData(
+                    name: 'SILVER',
+                    displayName: 'Silver',
+                    price: 'R 149',
+                    benefit: 'R 7 500',
+                    benefitDetail: '2 excess payouts per 12 months',
+                    color: Colors.grey[400]!,
+                    features: [
+                      'Everything in Bronze',
+                      'Higher excess limit',
+                      'Windscreen excess included',
+                      'Priority claims review',
+                    ],
+                    exclusions: [
+                      'Driving without a valid licence',
+                      'Driving under the influence',
+                      'Unroadworthy vehicle claims',
+                    ],
+                  ),
+                  TierData(
+                    name: 'GOLD',
+                    displayName: 'Gold',
+                    price: 'R 259',
+                    benefit: 'R 15 000',
+                    benefitDetail: 'Unlimited excess payouts per 12 months',
+                    color: const Color(0xFFFFD700),
+                    features: [
+                      'Everything in Silver',
+                      'Highest excess limit',
+                      'Car hire contribution while repairs happen',
+                      'Dedicated claims agent on WhatsApp',
+                    ],
+                    exclusions: [
+                      'Driving without a valid licence',
+                      'Driving under the influence',
+                      'Unroadworthy vehicle claims',
+                    ],
+                  ),
+                ],
+                context: context,
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -235,7 +297,6 @@ class PlansScreen extends StatelessWidget {
           ],
         ),
       ),
-      // NO BOTTOM NAVIGATION BAR HERE
     );
   }
 
@@ -417,7 +478,6 @@ class PlansScreen extends StatelessWidget {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                // Navigate to registration page
                 Navigator.pushNamed(context, '/registration');
               },
               style: ElevatedButton.styleFrom(

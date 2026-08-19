@@ -3,8 +3,10 @@ package com.claimly.backend.controller;
 import com.claimly.backend.dto.response.AdminClaimResponse;
 import com.claimly.backend.dto.response.AdminUserDetailResponse;
 import com.claimly.backend.dto.response.AdminUserSummaryResponse;
+import com.claimly.backend.dto.response.PendingPolicyResponse;
 import com.claimly.backend.service.AdminService;
 import com.claimly.backend.service.ClaimService;
+import com.claimly.backend.service.PolicyService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,8 +14,9 @@ import java.util.List;
 
 /**
  * ADMIN + SUPER_ADMIN only (enforced in SecurityConfig). Lets staff review
- * new registrations, approve/suspend customer accounts, and see claims.
- * Claim *verification* itself is SUPER_ADMIN only - see SuperAdminController.
+ * new registrations, approve/suspend customer accounts, approve pending
+ * cover selections, and see claims. Claim *verification* itself is
+ * SUPER_ADMIN only - see SuperAdminController.
  */
 @RestController
 @RequestMapping("/api/admin")
@@ -22,10 +25,12 @@ public class AdminController {
 
     private final AdminService adminService;
     private final ClaimService claimService;
+    private final PolicyService policyService;
 
-    public AdminController(AdminService adminService, ClaimService claimService) {
+    public AdminController(AdminService adminService, ClaimService claimService, PolicyService policyService) {
         this.adminService = adminService;
         this.claimService = claimService;
+        this.policyService = policyService;
     }
 
     @GetMapping("/users")
@@ -59,5 +64,16 @@ public class AdminController {
     @GetMapping("/claims")
     public ResponseEntity<List<AdminClaimResponse>> getAllClaims() {
         return ResponseEntity.ok(claimService.getAllClaimsForAdmin());
+    }
+
+    @GetMapping("/policies/pending")
+    public ResponseEntity<List<PendingPolicyResponse>> getPendingPolicies() {
+        return ResponseEntity.ok(policyService.getPendingPolicies());
+    }
+
+    @PutMapping("/policies/{id}/approve")
+    public ResponseEntity<Void> approvePolicy(@PathVariable Long id) {
+        policyService.approveCover(id);
+        return ResponseEntity.ok().build();
     }
 }

@@ -7,7 +7,7 @@ class AppTheme {
   static const Color backgroundColor = Color(0xFF081814);
   static const Color surfaceColor = Color(0xFF0D2A22);
   static const Color cardColor = Color(0xFF0D2A22);
-  
+
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
@@ -24,7 +24,7 @@ class AppTheme {
       backgroundColor: Colors.transparent,
       foregroundColor: Colors.black,
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       elevation: 2,
       color: Colors.white,
       shape: RoundedRectangleBorder(
@@ -37,7 +37,7 @@ class AppTheme {
       unselectedItemColor: Colors.grey,
     ),
   );
-  
+
   static ThemeData darkTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
@@ -54,7 +54,7 @@ class AppTheme {
       backgroundColor: Colors.transparent,
       foregroundColor: Colors.white,
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       elevation: 4,
       color: cardColor.withOpacity(0.6),
       shape: RoundedRectangleBorder(

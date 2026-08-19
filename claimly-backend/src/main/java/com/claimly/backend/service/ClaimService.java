@@ -28,12 +28,15 @@ public class ClaimService {
     private final UserRepository userRepository;
     private final ClaimRepository claimRepository;
     private final JwtService jwtService;
+    private final EmailService emailService;
     private final String UPLOAD_DIR = "uploads/claims/";
     
-    public ClaimService(UserRepository userRepository, ClaimRepository claimRepository, JwtService jwtService) {
+    public ClaimService(UserRepository userRepository, ClaimRepository claimRepository,
+                         JwtService jwtService, EmailService emailService) {
         this.userRepository = userRepository;
         this.claimRepository = claimRepository;
         this.jwtService = jwtService;
+        this.emailService = emailService;
         
         try {
             Files.createDirectories(Paths.get(UPLOAD_DIR));
@@ -153,6 +156,41 @@ public class ClaimService {
         claim.getHistory().add(history);
 
         claimRepository.save(claim);
+
+        User claimant = claim.getUser();
+        emailService.sendClaimDecisionEmail(claimant.getEmail(), claimant.getFullName(),
+                claim.getClaimReference(), approve, claim.getDeclineReason());
+    }
+
+    /** Super-admin only: records the payout on an already-approved claim and marks it Paid. */
+    @Transactional
+    public void markAsPaid(Long claimId, java.math.BigDecimal payoutAmount, String payoutReference, String actorName) {
+        Claim claim = claimRepository.findById(claimId)
+                .orElseThrow(() -> new RuntimeException("Claim not found"));
+
+        if (claim.getStatus() != com.claimly.backend.entity.enums.ClaimStatus.APPROVED) {
+            throw new RuntimeException("Only an approved claim can be marked as paid");
+        }
+
+        com.claimly.backend.entity.enums.ClaimStatus fromStatus = claim.getStatus();
+        claim.setStatus(com.claimly.backend.entity.enums.ClaimStatus.PAID);
+        claim.setPayoutAmount(payoutAmount);
+        claim.setPayoutReference(payoutReference);
+        claim.setPaidAt(java.time.LocalDateTime.now());
+
+        ClaimHistory history = new ClaimHistory();
+        history.setClaim(claim);
+        history.setFromStatus(fromStatus.name());
+        history.setToStatus(claim.getStatus().name());
+        history.setChangedBy(actorName);
+        history.setComment("Paid out R" + payoutAmount + " · ref " + payoutReference);
+        claim.getHistory().add(history);
+
+        claimRepository.save(claim);
+
+        User claimant = claim.getUser();
+        emailService.sendClaimPaidEmail(claimant.getEmail(), claimant.getFullName(),
+                claim.getClaimReference(), payoutAmount.toString(), payoutReference);
     }
     
     private String saveFile(MultipartFile file) throws IOException {
@@ -225,6 +263,9 @@ public class ClaimService {
                 .userFullName(claim.getUser().getFullName())
                 .userEmail(claim.getUser().getEmail())
                 .submittedAt(claim.getSubmittedAt())
+                .payoutAmount(claim.getPayoutAmount() != null ? claim.getPayoutAmount().toString() : null)
+                .payoutReference(claim.getPayoutReference())
+                .paidAt(claim.getPaidAt())
                 .build();
     }
 }

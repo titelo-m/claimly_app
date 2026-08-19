@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:file_picker/file_picker.dart';
 
 class ApiService {
   static const String baseUrl = 'http://localhost:8080/api';
@@ -220,16 +221,42 @@ class ApiService {
 
   // ============ CLAIMS ============
 
+  /// Submits a claim as multipart/form-data: a "claim" JSON part plus zero
+  /// or more "documents" file parts - matching ClaimController.submitClaim's
+  /// @RequestPart signature on the backend.
   static Future<Map<String, dynamic>> submitClaim(
-      String token, Map<String, dynamic> claimData) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/claims/submit'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(claimData),
+    String token,
+    String claimType,
+    String description,
+    List<PlatformFile> files,
+  ) async {
+    final uri = Uri.parse('$baseUrl/claims/submit');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers['Authorization'] = 'Bearer $token';
+
+    request.files.add(
+      http.MultipartFile.fromString(
+        'claim',
+        jsonEncode({'claimType': claimType, 'description': description}),
+        contentType: MediaType('application', 'json'),
+      ),
     );
+
+    for (final file in files) {
+      final bytes = file.bytes;
+      if (bytes == null) continue;
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'documents',
+          bytes,
+          filename: file.name,
+          contentType: _guessContentType(file.name),
+        ),
+      );
+    }
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -241,6 +268,19 @@ class ApiService {
   static Future<List<dynamic>> getClaims(String token) async {
     final response = await http.get(
       Uri.parse('$baseUrl/claims'),
+      headers: _authHeaders(token),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(_extractError(response));
+    }
+  }
+
+  static Future<Map<String, dynamic>> getClaimDetail(String token, String claimReference) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/claims/$claimReference'),
       headers: _authHeaders(token),
     );
 
@@ -320,6 +360,96 @@ class ApiService {
     }
   }
 
+  static Future<List<dynamic>> getPendingPolicies(String token) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/admin/policies/pending'),
+      headers: _authHeaders(token),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(_extractError(response));
+    }
+  }
+
+  static Future<void> approveCover(String token, int policyId) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/admin/policies/$policyId/approve'),
+      headers: _authHeaders(token),
+    );
+    if (response.statusCode != 200) {
+      throw Exception(_extractError(response));
+    }
+  }
+
+  // ============ CHAT (CUSTOMER) ============
+
+  static Future<List<dynamic>> getMyChatMessages(String token) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/chat/messages'),
+      headers: _authHeaders(token),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(_extractError(response));
+    }
+  }
+
+  static Future<void> sendChatMessage(String token, String message) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/chat/messages'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'message': message}),
+    );
+    if (response.statusCode != 200) {
+      throw Exception(_extractError(response));
+    }
+  }
+
+  // ============ CHAT (ADMIN / SUPER ADMIN) ============
+
+  static Future<List<dynamic>> getAdminConversations(String token) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/admin/chat/conversations'),
+      headers: _authHeaders(token),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(_extractError(response));
+    }
+  }
+
+  static Future<List<dynamic>> getAdminConversation(String token, int customerId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/admin/chat/conversations/$customerId'),
+      headers: _authHeaders(token),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(_extractError(response));
+    }
+  }
+
+  static Future<void> sendAdminChatReply(String token, int customerId, String message) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/admin/chat/conversations/$customerId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'message': message}),
+    );
+    if (response.statusCode != 200) {
+      throw Exception(_extractError(response));
+    }
+  }
+
   // ============ SUPER ADMIN ONLY ============
 
   static Future<List<dynamic>> getAdmins(String token) async {
@@ -337,6 +467,16 @@ class ApiService {
   static Future<void> promoteToAdmin(String token, int userId) async {
     final response = await http.put(
       Uri.parse('$baseUrl/super-admin/users/$userId/promote-to-admin'),
+      headers: _authHeaders(token),
+    );
+    if (response.statusCode != 200) {
+      throw Exception(_extractError(response));
+    }
+  }
+
+  static Future<void> demoteToCustomer(String token, int userId) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/super-admin/users/$userId/demote-to-customer'),
       headers: _authHeaders(token),
     );
     if (response.statusCode != 200) {
@@ -379,6 +519,28 @@ class ApiService {
       body: jsonEncode({
         'approve': approve,
         if (declineReason != null) 'declineReason': declineReason,
+      }),
+    );
+    if (response.statusCode != 200) {
+      throw Exception(_extractError(response));
+    }
+  }
+
+  static Future<void> markClaimAsPaid(
+    String token,
+    int claimId, {
+    required String payoutAmount,
+    required String payoutReference,
+  }) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/super-admin/claims/$claimId/mark-paid'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'payoutAmount': payoutAmount,
+        'payoutReference': payoutReference,
       }),
     );
     if (response.statusCode != 200) {

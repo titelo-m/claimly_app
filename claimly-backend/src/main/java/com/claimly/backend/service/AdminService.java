@@ -26,10 +26,14 @@ public class AdminService {
 
     private final UserRepository userRepository;
     private final UserDocumentRepository userDocumentRepository;
+    private final EmailService emailService;
 
-    public AdminService(UserRepository userRepository, UserDocumentRepository userDocumentRepository) {
+    public AdminService(UserRepository userRepository,
+                         UserDocumentRepository userDocumentRepository,
+                         EmailService emailService) {
         this.userRepository = userRepository;
         this.userDocumentRepository = userDocumentRepository;
+        this.emailService = emailService;
     }
 
     public List<AdminUserSummaryResponse> getAllCustomers() {
@@ -47,8 +51,12 @@ public class AdminService {
     @Transactional
     public void activate(Long userId) {
         User user = getCustomerOrThrow(userId);
+        boolean isFirstApproval = user.getStatus() == UserStatus.PENDING_APPROVAL;
         user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
+        if (isFirstApproval) {
+            emailService.sendAccountApprovedEmail(user.getEmail(), user.getFullName());
+        }
     }
 
     @Transactional
@@ -56,6 +64,7 @@ public class AdminService {
         User user = getCustomerOrThrow(userId);
         user.setStatus(UserStatus.SUSPENDED);
         userRepository.save(user);
+        emailService.sendAccountSuspendedEmail(user.getEmail(), user.getFullName());
     }
 
     @Transactional
@@ -86,6 +95,7 @@ public class AdminService {
                 .role(user.getRole().name())
                 .status(user.getStatus().name())
                 .hasCover(policy != null)
+                .policyStatus(policy != null ? policy.getStatus().name() : null)
                 .productType(policy != null ? policy.getProductType() : null)
                 .tier(policy != null ? policy.getTier() : null)
                 .documentCount(docCount)
@@ -118,6 +128,7 @@ public class AdminService {
                 .nextOfKinPhone(user.getNextOfKinPhone())
                 .profilePictureUrl(user.getProfilePictureUrl())
                 .hasCover(policy != null)
+                .policyStatus(policy != null ? policy.getStatus().name() : null)
                 .productType(policy != null ? policy.getProductType() : null)
                 .tier(policy != null ? policy.getTier() : null)
                 .paymentMethod(policy != null ? policy.getPaymentMethod() : null)

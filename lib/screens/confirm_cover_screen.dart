@@ -2,14 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/user_model.dart';
+import '../services/api_service.dart';
+import '../services/storage_service.dart';
 
-class ConfirmCoverScreen extends StatelessWidget {
+class ConfirmCoverScreen extends StatefulWidget {
   const ConfirmCoverScreen({super.key});
+
+  @override
+  State<ConfirmCoverScreen> createState() => _ConfirmCoverScreenState();
+}
+
+class _ConfirmCoverScreenState extends State<ConfirmCoverScreen> {
+  bool _isSubmitting = false;
 
   @override
   Widget build(BuildContext context) {
     final userModel = Provider.of<UserModel>(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isIncomeProtection = userModel.selectedProduct == 'Income Protection';
 
     // Get benefit details based on product and tier
@@ -330,9 +338,7 @@ class ConfirmCoverScreen extends StatelessWidget {
                       // Back button - grey background
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
+                          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
                           style: OutlinedButton.styleFrom(
                             backgroundColor: Colors.white.withOpacity(0.08),
                             foregroundColor: Colors.white,
@@ -359,9 +365,7 @@ class ConfirmCoverScreen extends StatelessWidget {
                       // Confirm button - green
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushReplacementNamed(context, '/dashboard');
-                          },
+                          onPressed: _isSubmitting ? null : _handleConfirm,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF49D86A),
                             foregroundColor: Colors.black,
@@ -370,14 +374,23 @@ class ConfirmCoverScreen extends StatelessWidget {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: Text(
-                            'Confirm & activate',
-                            style: GoogleFonts.inter(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
+                          child: _isSubmitting
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                                  ),
+                                )
+                              : Text(
+                                  'Confirm & activate',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black,
+                                  ),
+                                ),
                         ),
                       ),
                     ],
@@ -414,6 +427,49 @@ class ConfirmCoverScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _handleConfirm() async {
+    final userModel = Provider.of<UserModel>(context, listen: false);
+    setState(() => _isSubmitting = true);
+
+    try {
+      final token = await StorageService.getToken();
+      if (token == null) {
+        throw Exception('You need to be signed in to do that.');
+      }
+
+      final response = await ApiService.selectCover(token, {
+        'productType': userModel.selectedProduct,
+        'tier': userModel.selectedTier,
+        'paymentMethod': userModel.paymentMethod,
+      });
+
+      if (!mounted) return;
+      userModel.updateFromApi(response);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cover submitted! An admin will review it shortly.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      Navigator.pushReplacementNamed(context, '/dashboard');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   Widget _buildInfoCard({

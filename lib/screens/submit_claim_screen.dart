@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import '../models/user_model.dart';
+import '../services/api_service.dart';
+import '../services/storage_service.dart';
 
 class SubmitClaimScreen extends StatefulWidget {
   const SubmitClaimScreen({super.key});
@@ -15,7 +16,7 @@ class SubmitClaimScreen extends StatefulWidget {
 class _SubmitClaimScreenState extends State<SubmitClaimScreen> {
   String _selectedClaimType = '';
   final TextEditingController _descriptionController = TextEditingController();
-  List<File> _uploadedFiles = [];
+  List<PlatformFile> _uploadedFiles = [];
   bool _isSubmitting = false;
 
   final Map<String, List<String>> _requiredDocuments = {
@@ -331,15 +332,24 @@ class _SubmitClaimScreenState extends State<SubmitClaimScreen> {
                               ),
                               child: Row(
                                 children: [
-                                  Text(
-                                    file.path.split('/').last,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 12,
-                                      color: Colors.white.withOpacity(0.7),
+                                  Expanded(
+                                    child: Text(
+                                      file.name,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: Colors.white.withOpacity(0.7),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  const Spacer(),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '${(file.size / 1024).toStringAsFixed(0)} KB',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      color: Colors.white.withOpacity(0.4),
+                                    ),
+                                  ),
                                   IconButton(
                                     icon: Icon(
                                       Icons.close,
@@ -493,16 +503,32 @@ class _SubmitClaimScreenState extends State<SubmitClaimScreen> {
   }
 
   Future<void> _pickFiles() async {
-    final picker = ImagePicker();
-    final XFile? image = await picker.pickImage(
-      source: ImageSource.gallery,
+    final remaining = 5 - _uploadedFiles.length;
+    if (remaining <= 0) return;
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+      allowMultiple: true,
+      withData: true, // needed so bytes are available on web
     );
-    
-    if (image != null) {
-      setState(() {
-        _uploadedFiles.add(File(image.path));
-      });
+    if (result == null) return;
+
+    final picked = result.files.take(remaining).toList();
+    final tooLarge = picked.where((f) => f.size > 10 * 1024 * 1024).toList();
+
+    if (tooLarge.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${tooLarge.first.name} is over the 10MB limit'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
+
+    setState(() {
+      _uploadedFiles.addAll(picked.where((f) => f.size <= 10 * 1024 * 1024));
+    });
   }
 
   Future<void> _submitClaim() async {
@@ -520,11 +546,11 @@ class _SubmitClaimScreenState extends State<SubmitClaimScreen> {
       return;
     }
 
-    if (_descriptionController.text.isEmpty) {
+    if (_descriptionController.text.trim().length < 10) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Please describe what happened',
+            'Please describe what happened in a bit more detail (at least 10 characters)',
             style: GoogleFonts.inter(color: Colors.white),
           ),
           backgroundColor: Colors.black.withOpacity(0.8),
@@ -538,42 +564,67 @@ class _SubmitClaimScreenState extends State<SubmitClaimScreen> {
       _isSubmitting = true;
     });
 
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final token = await StorageService.getToken();
+      if (token == null) {
+        throw Exception('You need to be signed in to do that.');
+      }
 
-    final userModel = Provider.of<UserModel>(context, listen: false);
-    userModel.addClaim(
-      Claim(
-        id: 'CLM-26-${1000 + userModel.claims.length + 1}',
-        type: _selectedClaimType,
-        description: _descriptionController.text,
-        status: 'SUBMITTED',
-        date: DateTime.now(),
-        documents: _uploadedFiles.map((f) => f.path.split('/').last).toList(),
-      ),
-    );
+      final response = await ApiService.submitClaim(
+        token,
+        _selectedClaimType,
+        _descriptionController.text.trim(),
+        _uploadedFiles,
+      );
 
-    setState(() {
-      _isSubmitting = false;
-    });
+      if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Claim submitted successfully!',
-          style: GoogleFonts.inter(color: Colors.white),
+      final userModel = Provider.of<UserModel>(context, listen: false);
+      userModel.addClaim(
+        Claim(
+          id: response['claimReference'] ?? '',
+          type: _selectedClaimType,
+          description: _descriptionController.text.trim(),
+          status: response['status'] ?? 'SUBMITTED',
+          date: DateTime.now(),
+          documents: _uploadedFiles.map((f) => f.name).toList(),
         ),
-        backgroundColor: Colors.black.withOpacity(0.8),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+      );
 
-    setState(() {
-      _selectedClaimType = '';
-      _descriptionController.clear();
-      _uploadedFiles.clear();
-    });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Claim submitted - reference ${response['claimReference'] ?? ''}',
+            style: GoogleFonts.inter(color: Colors.white),
+          ),
+          backgroundColor: Colors.black.withOpacity(0.8),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
 
-    Navigator.pushReplacementNamed(context, '/claims');
+      setState(() {
+        _selectedClaimType = '';
+        _descriptionController.clear();
+        _uploadedFiles.clear();
+      });
+
+      Navigator.pushReplacementNamed(context, '/claims');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
   }
 
   void _showLogoutConfirmation(BuildContext context) {

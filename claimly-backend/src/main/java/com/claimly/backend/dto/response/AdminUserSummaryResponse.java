@@ -20,6 +20,7 @@ public class AdminUserSummaryResponse {
     private String role;
     private String status;
     private boolean hasCover;
+    private String policyStatus;
     private String productType;
     private String tier;
     private int documentCount;

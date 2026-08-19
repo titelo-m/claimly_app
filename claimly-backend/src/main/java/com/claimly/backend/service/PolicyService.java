@@ -4,6 +4,7 @@ import com.claimly.backend.dto.request.CoverSelectionRequest;
 import com.claimly.backend.dto.response.UserProfileResponse;
 import com.claimly.backend.entity.Policy;
 import com.claimly.backend.entity.User;
+import com.claimly.backend.entity.enums.PolicyStatus;
 import com.claimly.backend.repository.PolicyRepository;
 import com.claimly.backend.repository.UserRepository;
 import com.claimly.backend.security.JwtService;
@@ -19,13 +20,22 @@ public class PolicyService {
     private final UserRepository userRepository;
     private final PolicyRepository policyRepository;
     private final JwtService jwtService;
+    private final EmailService emailService;
     
-    public PolicyService(UserRepository userRepository, PolicyRepository policyRepository, JwtService jwtService) {
+    public PolicyService(UserRepository userRepository, PolicyRepository policyRepository,
+                          JwtService jwtService, EmailService emailService) {
         this.userRepository = userRepository;
         this.policyRepository = policyRepository;
         this.jwtService = jwtService;
+        this.emailService = emailService;
     }
     
+    /**
+     * A user choosing cover no longer activates it immediately - it goes to
+     * PENDING and an admin/super-admin must approve it (see approveCover()
+     * below) before it becomes ACTIVE. This matches the same
+     * submit-then-approve pattern used for account registration.
+     */
     @Transactional
     public UserProfileResponse selectCover(String token, CoverSelectionRequest request) {
         String email = jwtService.extractUsername(token);
@@ -59,10 +69,14 @@ public class PolicyService {
         policy.setStartDate(LocalDateTime.now());
         policy.setWaitingPeriodEnds(LocalDateTime.now().plusMonths(9));
         policy.setNextDebitDate(LocalDateTime.now().plusMonths(1));
+        policy.setStatus(PolicyStatus.PENDING);
         
         policy = policyRepository.save(policy);
         user.setPolicy(policy);
         userRepository.save(user);
+
+        emailService.sendCoverSubmittedEmail(user.getEmail(), user.getFullName(),
+                policy.getProductType(), policy.getTier());
         
         return buildProfileResponse(user);
     }
@@ -72,6 +86,40 @@ public class PolicyService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         return buildProfileResponse(user);
+    }
+
+    /** Admin/Super Admin only - moves a PENDING policy to ACTIVE and emails the customer. */
+    @Transactional
+    public void approveCover(Long policyId) {
+        Policy policy = policyRepository.findById(policyId)
+                .orElseThrow(() -> new RuntimeException("Policy not found"));
+
+        if (policy.getStatus() != PolicyStatus.PENDING) {
+            throw new RuntimeException("Only pending cover can be approved");
+        }
+
+        policy.setStatus(PolicyStatus.ACTIVE);
+        policyRepository.save(policy);
+
+        User user = policy.getUser();
+        emailService.sendCoverApprovedEmail(user.getEmail(), user.getFullName(),
+                policy.getProductType(), policy.getTier(), policy.getPolicyNumber());
+    }
+
+    public java.util.List<com.claimly.backend.dto.response.PendingPolicyResponse> getPendingPolicies() {
+        return policyRepository.findByStatus(PolicyStatus.PENDING).stream()
+                .map(p -> com.claimly.backend.dto.response.PendingPolicyResponse.builder()
+                        .id(p.getId())
+                        .userId(p.getUser().getId())
+                        .userFullName(p.getUser().getFullName())
+                        .userEmail(p.getUser().getEmail())
+                        .productType(p.getProductType())
+                        .tier(p.getTier())
+                        .monthlyPremium(p.getMonthlyPremium())
+                        .paymentMethod(p.getPaymentMethod())
+                        .submittedAt(p.getCreatedAt())
+                        .build())
+                .collect(java.util.stream.Collectors.toList());
     }
     
     private boolean isValidProductTier(String productType, String tier) {
@@ -155,6 +203,7 @@ public class PolicyService {
                 .benefitDetails(policy != null ? policy.getBenefitDetails() : null)
                 .nextDebitDate(policy != null ? policy.getNextDebitDate() : null)
                 .waitingPeriodEnds(policy != null ? policy.getWaitingPeriodEnds() : null)
+                .policyStatus(policy != null ? policy.getStatus().name() : null)
                 .build();
     }
 }

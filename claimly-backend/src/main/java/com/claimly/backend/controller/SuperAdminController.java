@@ -32,6 +32,12 @@ public class SuperAdminController {
         return ResponseEntity.ok().build();
     }
 
+    @PutMapping("/users/{id}/demote-to-customer")
+    public ResponseEntity<Void> demoteToCustomer(@PathVariable Long id) {
+        superAdminService.demoteToCustomer(id);
+        return ResponseEntity.ok().build();
+    }
+
     @PutMapping("/admins/{id}/suspend")
     public ResponseEntity<Void> suspendAdmin(
             @PathVariable Long id,
@@ -52,6 +58,15 @@ public class SuperAdminController {
             @RequestHeader("Authorization") String authHeader,
             @Valid @RequestBody ClaimVerifyRequest request) {
         superAdminService.verifyClaim(id, request, authHeader.substring(7));
+        return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/claims/{id}/mark-paid")
+    public ResponseEntity<Void> markClaimAsPaid(
+            @PathVariable Long id,
+            @RequestHeader("Authorization") String authHeader,
+            @Valid @RequestBody com.claimly.backend.dto.request.ClaimPayoutRequest request) {
+        superAdminService.markClaimAsPaid(id, request, authHeader.substring(7));
         return ResponseEntity.ok().build();
     }
 }
